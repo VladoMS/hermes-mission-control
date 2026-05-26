@@ -718,20 +718,24 @@ html,body{
   min-height:28px;
   transition:opacity 0.4s;
 }
-.context-row{
-  display:flex;justify-content:space-between;
-  margin-top:8px;margin-bottom:10px;
-  font-size:11px;
+.context-stats{
+  display:grid;grid-template-columns:1fr 1fr 1fr 1fr;
+  gap:8px;margin-top:8px;
 }
-.activity-segments{
-  display:flex;gap:4px;margin-top:4px;
+.ctx-stat{
+  text-align:center;
 }
-.activity-segments .seg{
-  flex:1;height:6px;
-  background:var(--line-dim);
-  transition:background 0.3s;
+.ctx-stat-val{
+  font-family:var(--font-display);font-size:22px;font-weight:600;
+  color:var(--text-hi);display:block;line-height:1.1;
 }
-.activity-segments .seg.lit{background:var(--red)}
+.ctx-stat-val.warn{color:var(--amber)}
+.ctx-stat-val.bad{color:var(--red)}
+.ctx-stat-val.good{color:var(--green)}
+.ctx-stat-label{
+  font-family:var(--font-mono);font-size:8px;letter-spacing:0.15em;
+  color:var(--text-dim);text-transform:uppercase;margin-top:2px;display:block;
+}
 .ops-right{
   padding:16px 18px;
   display:flex;flex-direction:column;gap:12px;
@@ -1532,16 +1536,12 @@ html,body{
             </div>
             <div style="height:1px;background:var(--line);margin:14px 0"></div>
             <div class="ops-context">
-              <div class="eyebrow cyan">CONTEXT WINDOW</div>
-              <div class="context-row">
-                <span class="mono" style="color:var(--text-hi)" id="ctxProfile">--</span>
-                <span class="mono" style="color:var(--text-dim)" id="ctxSessions">--</span>
-              </div>
-              <div class="activity-segments" id="activitySegments">
-                <span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span>
-                <span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span>
-                <span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span>
-                <span class="seg"></span><span class="seg"></span><span class="seg"></span><span class="seg"></span>
+              <div class="eyebrow cyan">SYSTEM STATUS</div>
+              <div class="context-stats">
+                <div class="ctx-stat" id="ctxActiveSessions"><span class="ctx-stat-val">--</span><span class="ctx-stat-label">SESSIONS</span></div>
+                <div class="ctx-stat" id="ctxBlocked"><span class="ctx-stat-val">--</span><span class="ctx-stat-label">BLOCKED</span></div>
+                <div class="ctx-stat" id="ctxErrors"><span class="ctx-stat-val">--</span><span class="ctx-stat-label">ERRORS</span></div>
+                <div class="ctx-stat" id="ctxTokensToday"><span class="ctx-stat-val">--</span><span class="ctx-stat-label">TOKENS</span></div>
               </div>
             </div>
           </div>
@@ -2076,44 +2076,30 @@ function renderOverview(){
     document.getElementById('hCpuP'), document.getElementById('hRamP'), document.getElementById('hDskP'),
     document.getElementById('hCpuPPct'), document.getElementById('hRamPPct'), document.getElementById('hDskPPct'));
 
-  // ── Context Window ──
-  // Show most active profile from ledger
-  var ctxProfile = document.getElementById('ctxProfile');
-  var ctxSessions = document.getElementById('ctxSessions');
-  var perProfile = ledger.per_profile || {};
-  var mostActive = '';
-  var mostActiveCount = 0;
-  Object.keys(perProfile).forEach(function(pname){
-    var count = perProfile[pname].session_count || 0;
-    if (count > mostActiveCount) { mostActive = pname; mostActiveCount = count; }
+  // ── System Status ──
+  var totalActiveSessions = 0;
+  var totalCompletedSessions = 0;
+  (d.profiles || []).forEach(function(p){
+    var stats = p.state_db_stats;
+    totalActiveSessions += (stats ? (stats.active_sessions || 0) : 0);
+    totalCompletedSessions += (stats ? (stats.completed_sessions || 0) : 0);
   });
-  if (ctxProfile) {
-    ctxProfile.textContent = mostActive ? mostActive.toUpperCase() : (profiles.length > 0 ? profiles[0].name.toUpperCase() : '--');
-  }
-  if (ctxSessions) {
-    ctxSessions.textContent = sessionCount + ' SESSIONS';
-  }
+  var totalSessions = totalActiveSessions + totalCompletedSessions;
 
-  // ── 16-segment activity bar based on per-profile session distribution ──
-  var segs = document.querySelectorAll('#activitySegments .seg');
-  if (segs.length > 0) {
-    // Count total profile activity slots
-    var totalProfileSessions = 0;
-    Object.keys(perProfile).forEach(function(pn){
-      totalProfileSessions += perProfile[pn].session_count || 0;
-    });
-    // Light up segments proportionally to active profiles
-    segs.forEach(function(s, idx){
-      s.classList.toggle('lit', idx < Math.min(Object.keys(perProfile).length, segs.length));
-    });
-    // If no per-profile data, light based on total sessions
-    if (totalProfileSessions === 0 && sessionCount > 0) {
-      var litCount = Math.min(Math.ceil(sessionCount / 4), segs.length);
-      segs.forEach(function(s, idx){
-        s.classList.toggle('lit', idx < litCount);
-      });
-    }
-  }
+  var blockedTasks = 0;
+  var kanban = d.kanban || {};
+  Object.keys(kanban.boards || {}).forEach(function(bn){
+    var cols = kanban.boards[bn].columns || {};
+    blockedTasks += (cols.blocked || []).length;
+  });
+
+  var errorCount = (d.errors || []).length;
+  var tokensToday = ledger ? formatToken(ledger.total_tokens || 0) : '--';
+
+  _setStat('ctxActiveSessions', totalSessions, '');
+  _setStat('ctxBlocked', blockedTasks, blockedTasks > 0 ? 'bad' : 'good');
+  _setStat('ctxErrors', errorCount, errorCount > 0 ? 'bad' : 'good');
+  _setStat('ctxTokensToday', tokensToday, '');
 
   // ── Radar Canvas (bootstrap once — rAF loop sustains itself) ──
   if (!_radarBooted) {
@@ -2645,6 +2631,16 @@ function renderServers(){
         if (next) next.classList.add('open');
       }
     }
+  }
+}
+
+function _setStat(id, value, cls){
+  var el = document.getElementById(id);
+  if (!el) return;
+  var valEl = el.querySelector('.ctx-stat-val');
+  if (valEl) {
+    valEl.textContent = value;
+    valEl.className = 'ctx-stat-val' + (cls ? ' ' + cls : '');
   }
 }
 
