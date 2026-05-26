@@ -1,0 +1,24 @@
+[Unit]
+Description=Mission Control Dashboard — Hermes Agent live ops console
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=hermes
+WorkingDirectory=/home/hermes/mission-control
+ExecStart=/usr/bin/python3 /home/hermes/mission-control/server.py
+ExecStop=/bin/kill -TERM $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mission-control
+
+# Security
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target
