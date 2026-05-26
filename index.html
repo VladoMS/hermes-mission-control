@@ -2059,8 +2059,11 @@ function renderOverview(){
     }
   }
 
-  // ── Radar Canvas ──
-  renderRadar(profiles, kanban, d.gateway);
+  // ── Radar Canvas (bootstrap once — rAF loop sustains itself) ──
+  if (!_radarBooted) {
+    _radarBooted = true;
+    renderRadar(profiles, kanban, d.gateway);
+  }
 
   // ── Throughput Total (skip if unchanged) ──
   var tpTotal = document.getElementById('tpTotal');
@@ -2078,6 +2081,7 @@ function renderOverview(){
 
 /* ── RADAR CANVAS ── */
 var _radarSweep = 0;
+var _radarBooted = false;
 function renderRadar(profiles, kanban, gateway){
   var canvas = document.getElementById('radarCanvas');
   if (!canvas) return;
@@ -2167,7 +2171,12 @@ function renderRadar(profiles, kanban, gateway){
   ctx.fill();
   ctx.restore();
 
-  requestAnimationFrame(function(){ renderRadar(profiles, kanban, gateway); });
+  // Self-sustaining loop — only external calls (SSE) are guarded
+  requestAnimationFrame(function loop(){
+    renderRadar(window.__mc && window.__mc.snapshot ? window.__mc.snapshot.profiles : profiles,
+                window.__mc && window.__mc.snapshot ? window.__mc.snapshot.kanban : kanban,
+                window.__mc && window.__mc.snapshot ? window.__mc.snapshot.gateway : gateway);
+  });
 }
 
 /* ── SPARKLINE CANVAS ── */
