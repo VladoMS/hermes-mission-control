@@ -1,0 +1,26 @@
+{
+  "servers": [
+    {
+      "name": "hermes",
+      "display": "Hermes VPS",
+      "host": "localhost",
+      "type": "vps",
+      "sort_order": 0,
+      "has_dokku": false,
+      "health_source": "local",
+      "cron_label": "HERMES JOBS",
+      "notes": "ADA home base — Hetzner CX33, Nuremberg"
+    },
+    {
+      "name": "prod",
+      "display": "Production",
+      "host": "prod",
+      "type": "vps",
+      "sort_order": 1,
+      "has_dokku": true,
+      "health_source": "ssh",
+      "cron_label": "PROD JOBS",
+      "notes": "Dokku 0.37.7 — Hetzner CCX23"
+    }
+  ]
+}

@@ -1083,86 +1083,112 @@ html,body{
   color:var(--red);font-size:8px;margin-bottom:10px;
 }
 
-/* ── CRON TAB ── */
-.cron-section{margin-bottom:36px}
-.cron-section-head{
-  display:flex;align-items:center;gap:12px;
-  margin-bottom:16px;padding-bottom:10px;
-  border-bottom:1px solid var(--line-dim);
-}
-.cron-grid{
+/* ── SERVERS TAB ── */
+.server-grid{
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(420px,1fr));
-  gap:14px;
+  grid-template-columns:repeat(auto-fill, minmax(480px, 1fr));
+  gap:24px;
 }
-.cron-empty{
-  display:none;
-  text-align:center;padding:40px 20px;
-  font-family:var(--font-mono);font-size:12px;
-  color:var(--text-faint);letter-spacing:0.12em;
-}
-.cron-empty.visible{display:block}
-
-/* Glass card for each job */
-.cron-card{
+.server-card{
   background:rgba(12,18,26,0.6);
   border:1px solid var(--line);
-  padding:16px 18px 14px;
+  padding:22px 24px;
   position:relative;
   clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);
-  transition:border-color .2s,background .2s;
 }
-.cron-card:hover{
-  border-color:var(--line-strong);
-  background:rgba(12,18,26,0.8);
+.server-card .srv-head{
+  display:flex;align-items:center;gap:14px;
+  margin-bottom:18px;padding-bottom:14px;
+  border-bottom:1px solid var(--line-dim);
 }
-.cron-card .cron-owner-badge{
-  position:absolute;top:10px;right:10px;
-  font-family:var(--font-mono);font-size:8.5px;
-  letter-spacing:0.2em;text-transform:uppercase;
-  padding:2px 7px;border-radius:3px;
+.server-card .srv-name{
+  font-family:var(--font-display);font-size:22px;font-weight:600;
+  color:var(--text-hi);letter-spacing:0.06em;
 }
-.cron-card .cron-owner-badge.hermes{
-  color:var(--red-soft);background:var(--red-bg);
-  border:1px solid var(--red-line);
+.server-card .srv-type{
+  font-family:var(--font-mono);font-size:8.5px;letter-spacing:0.2em;
+  text-transform:uppercase;padding:2px 8px;border-radius:3px;
+  color:var(--cyan-soft);background:var(--cyan-bg);border:1px solid var(--cyan-line);
 }
-.cron-card .cron-owner-badge.system{
-  color:var(--text-dim);background:rgba(255,255,255,0.04);
-  border:1px solid var(--line-dim);
+.server-card .srv-notes{
+  font-family:var(--font-mono);font-size:10px;color:var(--text-dim);
+  margin-top:2px;
 }
-.cron-card .cron-name{
-  font-family:var(--font-mono);font-size:13px;
-  color:var(--text-hi);line-height:1.3;
-  margin-bottom:12px;padding-right:70px;
-  word-break:break-all;
-  overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap;
+.server-card .srv-health{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;
+  margin-bottom:18px;
 }
-.cron-card .cron-name:hover{
-  white-space:normal;word-break:break-all;
+.server-card .srv-health-item{}
+.server-card .srv-health-label{
+  font-family:var(--font-mono);font-size:9px;letter-spacing:0.15em;
+  color:var(--text-dim);text-transform:uppercase;margin-bottom:6px;
 }
-.cron-card .cron-row{
-  display:flex;gap:24px;align-items:baseline;
-  margin-bottom:8px;
+.server-card .srv-health-bar{
+  height:6px;background:rgba(255,255,255,0.06);
+  margin-bottom:4px;
 }
-.cron-card .cron-row .cron-label{
-  font-family:var(--font-mono);font-size:9px;
-  letter-spacing:0.18em;color:var(--text-dim);
-  text-transform:uppercase;
+.server-card .srv-health-bar .fill{
+  height:100%;background:var(--cyan);
+  transition:width .4s,background .4s;
 }
-.cron-card .cron-row .cron-value{
-  font-family:var(--font-mono);font-size:12px;
-  color:var(--text);margin-left:8px;
+.server-card .srv-health-bar .fill.amber{background:var(--amber)}
+.server-card .srv-health-bar .fill.red{background:var(--red)}
+.server-card .srv-health-val{
+  font-family:var(--font-display);font-size:18px;font-weight:600;
+  color:var(--text-hi);
 }
-.cron-card .cron-row .cron-next{
-  color:var(--cyan-soft);margin-left:8px;
-  font-family:var(--font-mono);font-size:12px;
+.server-card .srv-section{
+  margin-top:16px;padding-top:14px;
+  border-top:1px solid var(--line-dim);
 }
-.cron-card .cron-desc{
+.server-card .srv-section-head{
+  font-family:var(--font-mono);font-size:10px;letter-spacing:0.18em;
+  color:var(--text-dim);text-transform:uppercase;margin-bottom:10px;
+  cursor:pointer;display:flex;align-items:center;gap:8px;
+}
+.server-card .srv-section-head:hover{color:var(--text)}
+.server-card .srv-section-head .arrow{
+  transition:transform .2s;font-size:14px;
+}
+.server-card .srv-section-head.open .arrow{transform:rotate(90deg)}
+.server-card .srv-cron-list{
+  max-height:300px;overflow-y:auto;
+  display:none;
+}
+.server-card .srv-cron-list.open{display:block}
+.server-card .srv-cron-item{
+  display:flex;align-items:center;gap:12px;
+  padding:6px 0;font-family:var(--font-mono);font-size:11px;
+  border-bottom:1px solid rgba(255,255,255,0.03);
+}
+.server-card .srv-cron-item .srv-cron-sched{
+  color:var(--cyan);min-width:100px;font-size:10px;
+}
+.server-card .srv-cron-item .srv-cron-cmd{
+  color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.server-card .srv-dokku-apps{
+  display:flex;flex-wrap:wrap;gap:8px;
+  display:none;
+}
+.server-card .srv-dokku-apps.open{display:flex}
+.server-card .srv-dokku-app{
   font-family:var(--font-mono);font-size:10px;
-  color:var(--text-dim);margin-bottom:6px;
-  letter-spacing:0.04em;
+  padding:4px 10px;border-radius:4px;
+  background:rgba(30,200,255,0.06);color:var(--cyan-soft);
+  border:1px solid var(--cyan-line);
 }
+.server-card .srv-dokku-containers{
+  margin-top:8px;display:none;
+}
+.server-card .srv-dokku-containers.open{display:block}
+.server-card .srv-container-item{
+  display:flex;align-items:center;gap:12px;
+  padding:4px 0;font-family:var(--font-mono);font-size:10px;
+  color:var(--text-dim);
+}
+.server-card .srv-container-item .srv-container-name{color:var(--text);min-width:160px}
+.server-card .srv-container-item .srv-container-status{font-size:9px}
 .cron-card .cron-source{
   font-family:var(--font-mono);font-size:9px;
   color:var(--text-faint);letter-spacing:0.04em;
@@ -1451,7 +1477,7 @@ html,body{
     <button class="tab active" data-tab="overview">Overview</button>
     <button class="tab" data-tab="profiles">Profiles</button>
     <button class="tab" data-tab="kanban">Kanban</button>
-    <button class="tab" data-tab="cron">Cron</button>
+    <button class="tab" data-tab="servers">Servers</button>
     <button class="tab" data-tab="sessions">Sessions</button>
     <button class="tab" data-tab="content">Content</button>
     <!-- Mobile menu toggle -->
@@ -1478,7 +1504,7 @@ html,body{
   <button class="tab" data-tab="overview" onclick="selectMobileTab('overview')">Overview</button>
   <button class="tab" data-tab="profiles" onclick="selectMobileTab('profiles')">Profiles</button>
   <button class="tab" data-tab="kanban" onclick="selectMobileTab('kanban')">Kanban</button>
-  <button class="tab" data-tab="cron" onclick="selectMobileTab('cron')">Cron</button>
+  <button class="tab" data-tab="servers" onclick="selectMobileTab('servers')">Servers</button>
   <button class="tab" data-tab="sessions" onclick="selectMobileTab('sessions')">Sessions</button>
   <button class="tab" data-tab="content" onclick="selectMobileTab('content')">Content</button>
 </nav>
@@ -1648,38 +1674,19 @@ html,body{
     </div>
   </section>
 
-  <!-- ── TAB: CRON ── -->
-  <section class="tab-content" id="tab-cron">
+  <!-- ── TAB: SERVERS ── -->
+  <section class="tab-content" id="tab-servers">
     <div class="section">
       <div class="section-head">
         <div class="title-block">
-          <div class="eyebrow">CRON</div>
-          <div class="display large">Scheduled Jobs</div>
+          <div class="eyebrow cyan">SERVERS</div>
+          <div class="display large">Infrastructure</div>
         </div>
         <div class="mono" style="font-size:12px;color:var(--text-dim)">
-          <span id="cronTotal">--</span> jobs
+          <span id="serverCount">--</span> servers
         </div>
       </div>
-
-      <!-- HERMES JOBS section -->
-      <div class="cron-section" id="cronHermesSection">
-        <div class="cron-section-head">
-          <span class="eyebrow">HERMES JOBS</span>
-          <span class="chip red" style="margin-left:auto">hermes</span>
-        </div>
-        <div class="cron-grid" id="cronHermesGrid"></div>
-        <div class="cron-empty" id="cronHermesEmpty">No scheduled jobs in this group.</div>
-      </div>
-
-      <!-- SYSTEM JOBS section -->
-      <div class="cron-section" id="cronSystemSection">
-        <div class="cron-section-head">
-          <span class="eyebrow amber">SYSTEM JOBS</span>
-          <span class="chip amber" style="margin-left:auto">system</span>
-        </div>
-        <div class="cron-grid" id="cronSystemGrid"></div>
-        <div class="cron-empty" id="cronSystemEmpty">No scheduled jobs in this group.</div>
-      </div>
+      <div class="server-grid" id="serverGrid"></div>
     </div>
   </section>
 
@@ -1805,7 +1812,7 @@ html,body{
     overview:   document.getElementById('tab-overview'),
     profiles:   document.getElementById('tab-profiles'),
     kanban:     document.getElementById('tab-kanban'),
-    cron:       document.getElementById('tab-cron'),
+    servers:    document.getElementById('tab-servers'),
     sessions:   document.getElementById('tab-sessions'),
     content:    document.getElementById('tab-content')
   };
@@ -2474,7 +2481,7 @@ applySnapshot = function(snap){
   updateDirectives(snap);
   renderOverview();
   renderSessions();
-  renderCron();
+  renderServers();
 };
 
 /* ── RESPONSIVE SPARKLINE RESIZE ── */
@@ -2491,105 +2498,180 @@ document.addEventListener('DOMContentLoaded', function init(){
   renderProfiles();
   renderOverview();
   renderSessions();
-  renderCron();
+  renderServers();
 });
 
-/* ═══════════ CRON TAB RENDERER ═══════════ */
-function renderCron(){
-  var snap = window.__mc ? window.__mc.snapshot : null;
-  var crons = snap ? snap.crons : null;
+/* ═══════════ SERVERS TAB RENDERER ═══════════ */
+var _serversFingerprint = '';
 
-  // Fallback to old key name
-  if (!crons && snap && snap.cron && snap.cron.jobs) {
-    crons = snap.cron.jobs;
-  }
+function renderServers(){
+  var snap = window.__mc && window.__mc.snapshot;
+  var servers = snap && snap.servers;
+  var grid = document.getElementById('serverGrid');
+  var countEl = document.getElementById('serverCount');
+  if (!grid) return;
 
-  var hermesGrid = document.getElementById('cronHermesGrid');
-  var hermesEmpty = document.getElementById('cronHermesEmpty');
-  var systemGrid = document.getElementById('cronSystemGrid');
-  var systemEmpty = document.getElementById('cronSystemEmpty');
-  var totalEl = document.getElementById('cronTotal');
-
-  if (!crons || !Array.isArray(crons)) {
-    if (hermesGrid) hermesGrid.innerHTML = '';
-    if (systemGrid) systemGrid.innerHTML = '';
-    if (hermesEmpty) hermesEmpty.classList.add('visible');
-    if (systemEmpty) systemEmpty.classList.add('visible');
-    if (totalEl) totalEl.textContent = '0';
+  if (!servers || !servers.length) {
+    if (grid.innerHTML.indexOf('No servers') === -1) {
+      grid.innerHTML = '<div class="cron-empty visible">No servers configured.</div>';
+      _serversFingerprint = '';
+    }
+    if (countEl) countEl.textContent = '0';
     return;
   }
 
-  // Split by source
-  var hermesJobs = [];
-  var systemJobs = [];
-  for (var i = 0; i < crons.length; i++) {
-    if (crons[i].source === 'hermes') hermesJobs.push(crons[i]);
-    else systemJobs.push(crons[i]);
+  if (countEl && countEl.textContent !== String(servers.length)) {
+    countEl.textContent = servers.length;
   }
 
-  if (totalEl) totalEl.textContent = crons.length;
+  // Compute fingerprint — skips render if nothing changed
+  var fp = '';
+  for (var si = 0; si < servers.length; si++) {
+    var s = servers[si];
+    var h = s.health || {};
+    fp += s.name + '|' +
+      Math.round(h.cpu_pct || 0) + '|' +
+      Math.round(h.mem ? h.mem.mem_pct || 0 : 0) + '|' +
+      Math.round(h.disk ? h.disk.disk_pct || 0 : 0) + '|' +
+      (s.crons ? s.crons.length : 0) + '|' +
+      (s.dokku && s.dokku.apps ? s.dokku.apps.length : 0) + '|' +
+      (s.dokku && s.dokku.containers ? s.dokku.containers.length : 0) + ';';
+  }
 
-  // Render each group
-  _renderCronGroup(hermesJobs, hermesGrid, hermesEmpty, 'hermes');
-  _renderCronGroup(systemJobs, systemGrid, systemEmpty, 'system');
-}
+  if (fp === _serversFingerprint) return;
 
-function _renderCronGroup(jobs, gridEl, emptyEl, source){
-  if (!gridEl || !emptyEl) return;
-
-  if (jobs.length === 0) {
-    gridEl.innerHTML = '';
-    emptyEl.classList.add('visible');
+  // Health-only change? Update bars in-place, don't rebuild DOM
+  var structureFp = fp.replace(/\d+\|\d+\|\d+\|/g, 'X|X|X|');
+  var prevStructure = _serversFingerprint.replace(/\d+\|\d+\|\d+\|/g, 'X|X|X|');
+  if (structureFp === prevStructure && grid.children.length === servers.length) {
+    for (var si = 0; si < servers.length; si++) {
+      var srv = servers[si];
+      var h = srv.health || {};
+      var card = grid.children[si];
+      if (!card) continue;
+      var items = card.querySelectorAll('.srv-health-item');
+      if (items.length >= 3) {
+        _updateHealthItem(items[0], h.cpu_pct != null ? h.cpu_pct : null, '%');
+        _updateHealthItem(items[1], h.mem ? h.mem.mem_pct : null, '%');
+        _updateHealthItem(items[2], h.disk ? h.disk.disk_pct : null, '%');
+      }
+    }
+    _serversFingerprint = fp;
     return;
   }
 
-  emptyEl.classList.remove('visible');
+  // Structure changed — full rebuild with collapse restore
+  _serversFingerprint = fp;
+
+  var openSections = {};
+  var existingCards = grid.querySelectorAll('.server-card[data-server]');
+  for (var ci = 0; ci < existingCards.length; ci++) {
+    var ecard = existingCards[ci];
+    var esrv = ecard.getAttribute('data-server');
+    var eheads = ecard.querySelectorAll('.srv-section-head.open');
+    if (eheads.length) {
+      if (!openSections[esrv]) openSections[esrv] = [];
+      for (var hi = 0; hi < eheads.length; hi++) {
+        openSections[esrv].push(eheads[hi].textContent.trim().charCodeAt(1));
+      }
+    }
+  }
 
   var html = '';
-  for (var i = 0; i < jobs.length; i++) {
-    var j = jobs[i];
-    var name = (j.name || j.command || 'unnamed').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    var command = (j.command || j.name || '');
-    var schedule = j.schedule_display || '—';
-    var desc = j.schedule_desc || '';
-    var next = j.next_run_relative || '—';
-    var enabled = j.enabled !== false;
-    var sourcePath = j.source_path || '';
-    var shortPath = sourcePath.length > 60 ? '...' + sourcePath.slice(-57) : sourcePath;
+  for (var si = 0; si < servers.length; si++) {
+    var srv = servers[si];
+    var h = srv.health || {};
+    var name = srv.display || srv.name;
+    var cpu = h.cpu_pct != null ? h.cpu_pct : null;
+    var mem = h.mem ? h.mem.mem_pct : null;
+    var disk = h.disk ? h.disk.disk_pct : null;
 
-    html += '<div class="cron-card">';
+    html += '<div class="server-card" data-server="' + srv.name + '">';
+    html += '<div class="srv-head"><span class="srv-name">' + escHtml(name) + '</span><span class="srv-type">' + (srv.type || 'vps') + '</span></div>';
+    if (srv.notes) html += '<div class="srv-notes">' + escHtml(srv.notes) + '</div>';
 
-    // Owner badge
-    html += '<span class="cron-owner-badge ' + source + '">' + source.toUpperCase() + '</span>';
-
-    // Name / command
-    html += '<div class="cron-name" title="' + command.replace(/"/g,'&quot;') + '">' + name + '</div>';
-
-    // Schedule row
-    html += '<div class="cron-row">';
-    html += '<span class="cron-label">SCHEDULE</span>';
-    html += '<span class="cron-value">' + schedule + '</span>';
-    html += '<span class="cron-label" style="margin-left:auto">NEXT RUN</span>';
-    html += '<span class="cron-next">' + next + '</span>';
+    html += '<div class="srv-health">';
+    html += _buildHealthItem('CPU', cpu, '%');
+    html += _buildHealthItem('RAM', mem, '%');
+    html += _buildHealthItem('DISK', disk, '%');
     html += '</div>';
 
-    // Description
-    if (desc) {
-      html += '<div class="cron-desc">' + desc + '</div>';
+    var crons = srv.crons || [];
+    html += '<div class="srv-section">';
+    html += '<div class="srv-section-head" onclick="this.classList.toggle(\'open\');var list=this.nextElementSibling;list.classList.toggle(\'open\')">';
+    html += '<span class="arrow">▶</span> ' + (srv.cron_label || 'CRON JOBS') + ' (' + crons.length + ')';
+    html += '</div><div class="srv-cron-list">';
+    if (crons.length === 0) html += '<div class="srv-cron-item" style="color:var(--text-faint)">No cron jobs.</div>';
+    for (var ci = 0; ci < Math.min(crons.length, 20); ci++) {
+      var c = crons[ci];
+      html += '<div class="srv-cron-item"><span class="srv-cron-sched">' + (c.schedule_desc || c.schedule_display || '—') + '</span>';
+      html += '<span class="srv-cron-cmd" title="' + escHtml(c.command || c.name || '') + '">' + escHtml((c.command || c.name || '').slice(0, 80)) + '</span></div>';
     }
+    if (crons.length > 20) html += '<div class="srv-cron-item" style="color:var(--text-faint)">... and ' + (crons.length - 20) + ' more.</div>';
+    html += '</div></div>';
 
-    // Source path
-    if (sourcePath) {
-      html += '<div class="cron-source" title="' + sourcePath.replace(/"/g,'&quot;') + '">' + shortPath + '</div>';
+    if (srv.has_dokku && srv.dokku) {
+      var dokku = srv.dokku;
+      html += '<div class="srv-section">';
+      html += '<div class="srv-section-head" onclick="this.classList.toggle(\'open\');var apps=this.parentElement.querySelector(\'.srv-dokku-apps\');var conts=this.parentElement.querySelector(\'.srv-dokku-containers\');apps.classList.toggle(\'open\');conts.classList.toggle(\'open\')">';
+      html += '<span class="arrow">▶</span> DOKKU (' + (dokku.apps ? dokku.apps.length : 0) + ' apps)';
+      html += '</div><div class="srv-dokku-apps">';
+      if (dokku.apps && dokku.apps.length) for (var ai = 0; ai < dokku.apps.length; ai++) html += '<span class="srv-dokku-app">' + escHtml(dokku.apps[ai]) + '</span>';
+      html += '</div><div class="srv-dokku-containers">';
+      if (dokku.containers && dokku.containers.length) {
+        for (var di = 0; di < dokku.containers.length; di++) {
+          var dc = dokku.containers[di];
+          html += '<div class="srv-container-item"><span class="srv-container-name">' + escHtml(dc.name) + '</span><span class="srv-container-status">' + escHtml(dc.status) + '</span></div>';
+        }
+      }
+      html += '</div></div>';
     }
-
-    // Status dot
-    html += '<span class="cron-status-dot' + (enabled ? '' : ' disabled') + '"></span>';
-
     html += '</div>';
   }
 
-  gridEl.innerHTML = html;
+  grid.innerHTML = html;
+
+  var newCards = grid.querySelectorAll('.server-card[data-server]');
+  for (var ri = 0; ri < newCards.length; ri++) {
+    var ncard = newCards[ri];
+    var nsrv = ncard.getAttribute('data-server');
+    var saved = openSections[nsrv];
+    if (!saved || !saved.length) continue;
+    var nheads = ncard.querySelectorAll('.srv-section-head');
+    for (var nhi = 0; nhi < nheads.length; nhi++) {
+      if (saved.indexOf(nheads[nhi].textContent.trim().charCodeAt(1)) !== -1) {
+        nheads[nhi].classList.add('open');
+        var next = nheads[nhi].nextElementSibling;
+        if (next) next.classList.add('open');
+      }
+    }
+  }
+}
+
+function _updateHealthItem(el, pct, suffix){
+  var valEl = el.querySelector('.srv-health-val');
+  var barEl = el.querySelector('.fill');
+  if (!valEl || !barEl) return;
+  if (pct == null) {
+    valEl.textContent = '--';
+    valEl.style.color = 'var(--text-faint)';
+    barEl.style.width = '0%';
+    barEl.className = 'fill';
+    return;
+  }
+  var cls = pct > 85 ? 'red' : pct > 70 ? 'amber' : '';
+  valEl.textContent = pct.toFixed(0) + suffix;
+  valEl.style.color = '';
+  barEl.style.width = Math.min(pct, 100) + '%';
+  barEl.className = 'fill ' + cls;
+}
+
+function _buildHealthItem(label, pct, suffix){
+  if (pct == null) {
+    return '<div class="srv-health-item"><div class="srv-health-label">' + label + '</div><div class="srv-health-val" style="color:var(--text-faint)">--</div><div class="srv-health-bar"><div class="fill" style="width:0%"></div></div></div>';
+  }
+  var cls = pct > 85 ? 'red' : pct > 70 ? 'amber' : '';
+  return '<div class="srv-health-item"><div class="srv-health-label">' + label + '</div><div class="srv-health-bar"><div class="fill ' + cls + '" style="width:' + Math.min(pct, 100) + '%"></div></div><div class="srv-health-val">' + pct.toFixed(0) + suffix + '</div></div>';
 }
 
 /* ═══════════ SESSIONS TAB RENDERER ═══════════ */
