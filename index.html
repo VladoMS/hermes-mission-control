@@ -2211,21 +2211,27 @@ function renderSparkline(d){
   var maxVal = Math.max.apply(null, points);
   if (maxVal === 0) maxVal = 1;  // prevent division by zero
   var padding = 8;
+  var drawH = h - padding * 2;
   var stepX = (w - padding*2) / (points.length - 1);
+
+  // Minimum visible rise: even zero values get 10px from the bottom
+  var minRise = 10;
 
   ctx.clearRect(0, 0, w, h);
 
   // Gradient fill
   var grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, 'rgba(255,59,31,0.3)');
-  grad.addColorStop(1, 'rgba(255,176,32,0.05)');
+  grad.addColorStop(0, 'rgba(255,59,31,0.5)');
+  grad.addColorStop(1, 'rgba(255,176,32,0.12)');
 
   // Draw fill
   ctx.beginPath();
   ctx.moveTo(padding, h - padding);
   for (var i = 0; i < points.length; i++) {
     var x = padding + i * stepX;
-    var y = padding + (h - padding*2) * (1 - points[i]/maxVal);
+    var ratio = points[i] / maxVal;
+    // Scale: 0% → minRise from bottom, 100% → top
+    var y = h - padding - minRise + ratio * (minRise - drawH);
     ctx.lineTo(x, y);
   }
   ctx.lineTo(padding + (points.length-1) * stepX, h - padding);
@@ -2236,10 +2242,11 @@ function renderSparkline(d){
   // Draw line
   ctx.beginPath();
   ctx.strokeStyle = '#ff3b1f';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 2;
   for (var i = 0; i < points.length; i++) {
     var x = padding + i * stepX;
-    var y = padding + (h - padding*2) * (1 - points[i]/maxVal);
+    var ratio = points[i] / maxVal;
+    var y = h - padding - minRise + ratio * (minRise - drawH);
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
   }
@@ -2247,7 +2254,8 @@ function renderSparkline(d){
 
   // Glowing dot at rightmost
   var lastX = padding + (points.length-1) * stepX;
-  var lastY = padding + (h - padding*2) * (1 - points[points.length-1]/maxVal);
+  var lastRatio = points[points.length-1] / maxVal;
+  var lastY = h - padding - minRise + lastRatio * (minRise - drawH);
   ctx.beginPath();
   ctx.arc(lastX, lastY, 3.5, 0, Math.PI*2);
   ctx.fillStyle = '#ff6347';
@@ -3157,8 +3165,8 @@ var ContentTab = (function(){
   }
 
   function buildSidebar(){
-    // Clear existing doc rows (keep the empty-state div)
-    var rows = els.sidebar.querySelectorAll('.content-profile-group,.content-doc-row');
+    // Clear existing doc rows and labels (keep the empty-state div)
+    var rows = els.sidebar.querySelectorAll('.content-profile-group,.content-doc-row,.content-profile-label');
     rows.forEach(function(el){ el.remove(); });
 
     if (state.docs.length === 0){
