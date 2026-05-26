@@ -1344,14 +1344,16 @@ def save_content(rel_path, content):
 
 # Status → column mapping
 _STATUS_TO_COLUMN = {
-    "todo": "backlog",
-    "ready": "backlog",
-    "triage": "backlog",
-    "running": "in_progress",
-    "blocked": "in_progress",
-    "done": "done",
-    "archived": "done",
+    "triage":  "triage",
+    "todo":    "todo",
+    "ready":   "ready",
+    "running": "running",
+    "blocked": "blocked",
+    "done":    "done",
+    "archived":"archived",
 }
+
+_KANBAN_COLUMNS = ["triage", "todo", "ready", "running", "blocked", "done", "archived"]
 
 _PRIORITY_NAMES = {0: "low", 1: "medium", 2: "high", 3: "critical"}
 
@@ -1404,7 +1406,7 @@ def read_kanban_boards(errors_out):
             if os.path.isfile(board_db):
                 tasks = _read_kanban_tasks(board_db)
                 if tasks is not None:
-                    columns = {"backlog": [], "in_progress": [], "done": []}
+                    columns = {c: [] for c in _KANBAN_COLUMNS}
                     for t in tasks:
                         col = _STATUS_TO_COLUMN.get(t["status"], "backlog")
                         columns[col].append(t)
@@ -1424,7 +1426,7 @@ def read_kanban_boards(errors_out):
     if os.path.isfile(root_db):
         tasks = _read_kanban_tasks(root_db)
         if tasks is not None and len(tasks) > 0:
-            columns = {"backlog": [], "in_progress": [], "done": []}
+            columns = {c: [] for c in _KANBAN_COLUMNS}
             for t in tasks:
                 col = _STATUS_TO_COLUMN.get(t["status"], "backlog")
                 columns[col].append(t)

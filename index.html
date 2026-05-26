@@ -250,6 +250,32 @@ html,body{
   font-weight:600;
 }
 
+/* Hamburger — hidden on desktop */
+.tab-more{display:none}
+
+/* Mobile nav dropdown */
+.mobile-nav-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);
+  z-index:55;backdrop-filter:blur(2px);
+}
+.mobile-nav-dropdown{
+  display:none;position:fixed;top:var(--top-h);left:0;right:0;
+  z-index:56;background:var(--bg-deep);
+  border-bottom:1px solid var(--line);
+  padding:8px 12px;
+  flex-direction:column;gap:2px;
+}
+.mobile-nav-dropdown .tab{
+  width:100%;text-align:left;padding:10px 14px;
+  background:transparent;border:1px solid var(--line-dim);
+  border-radius:6px;color:var(--text);font-size:12px;
+}
+.mobile-nav-dropdown .tab:hover{background:rgba(255,255,255,0.05)}
+.mobile-nav-dropdown .tab.active{background:rgba(255,59,31,0.12);color:var(--red);border-color:var(--red-line)}
+
+.mobile-nav-open .mobile-nav-overlay{display:block}
+.mobile-nav-open .mobile-nav-dropdown{display:flex}
+
 /* ── STATUS CLUSTER ── */
 .top-bar .status-cluster{
   display:flex;gap:14px;align-items:center;
@@ -342,7 +368,7 @@ html,body{
 
 .kanban-grid{
   display:grid;
-  grid-template-columns:1fr 1fr 1fr;
+  grid-template-columns:repeat(auto-fill, minmax(160px, 1fr));
   gap:16px;
   align-items:start;
 }
@@ -365,8 +391,14 @@ html,body{
 .kanban-col-header.red .col-count{color:var(--red)}
 .kanban-col-header.amber{color:var(--amber-soft);border-bottom-color:var(--amber-line)}
 .kanban-col-header.amber .col-count{color:var(--amber)}
+.kanban-col-header.cyan{color:var(--cyan);border-bottom-color:rgba(30,200,255,0.3)}
+.kanban-col-header.cyan .col-count{color:var(--cyan)}
 .kanban-col-header.green{color:var(--green);border-bottom-color:rgba(74,222,128,0.3)}
 .kanban-col-header.green .col-count{color:var(--green)}
+.kanban-col-header.magenta{color:var(--magenta);border-bottom-color:rgba(217,70,239,0.3)}
+.kanban-col-header.magenta .col-count{color:var(--magenta)}
+.kanban-col-header.muted{color:var(--text-dim);border-bottom-color:var(--line-dim)}
+.kanban-col-header.muted .col-count{color:var(--text-faint)}
 
 .kanban-card{
   background:rgba(12,18,26,0.7);
@@ -1163,14 +1195,20 @@ html,body{
 @media(max-width:720px){
   .top-bar{padding:0 10px;}
   .top-bar .status-cluster{font-size:9px;gap:8px;}
-  .top-bar .tabs .tab:nth-child(n+5){display:none;}
+  .top-bar .tabs .tab{display:none}
+  .top-bar .tabs .tab.tab-more{display:inline-flex}
   .section{padding:28px 14px;}
   .stats-strip{grid-template-columns:repeat(2,1fr);}
   .ops-footer{grid-template-columns:repeat(2,1fr);}
+  /* Content tab: stack vertically */
+  .content-layout{flex-direction:column;height:auto;min-height:auto}
+  .content-sidebar{width:100%;max-height:200px;flex-shrink:1;border-right:none;border-bottom:1px solid var(--line)}
+  .content-preview{flex:1}
+  .content-doc-row{padding:6px 12px}
+  .content-doc-title{font-size:13px}
 }
 @media(max-width:480px){
   .top-bar .status-cluster{display:none;}
-  .top-bar .tabs .tab:nth-child(n+3){display:none;}
   .stats-strip{grid-template-columns:1fr;}
   .ops-footer{grid-template-columns:1fr;}
 }
@@ -1416,6 +1454,8 @@ html,body{
     <button class="tab" data-tab="cron">Cron</button>
     <button class="tab" data-tab="sessions">Sessions</button>
     <button class="tab" data-tab="content">Content</button>
+    <!-- Mobile menu toggle -->
+    <button class="tab tab-more" id="tabMoreBtn" onclick="toggleMobileMenu()" aria-label="More tabs">&#x2630;</button>
   </nav>
 
   <div class="spacer"></div>
@@ -1431,6 +1471,17 @@ html,body{
     <span class="version-badge">v1.0</span>
   </div>
 </header>
+
+<!-- Mobile nav overlay -->
+<div class="mobile-nav-overlay" id="mobileNavOverlay" onclick="closeMobileMenu()"></div>
+<nav class="mobile-nav-dropdown" id="mobileNavDropdown">
+  <button class="tab" data-tab="overview" onclick="selectMobileTab('overview')">Overview</button>
+  <button class="tab" data-tab="profiles" onclick="selectMobileTab('profiles')">Profiles</button>
+  <button class="tab" data-tab="kanban" onclick="selectMobileTab('kanban')">Kanban</button>
+  <button class="tab" data-tab="cron" onclick="selectMobileTab('cron')">Cron</button>
+  <button class="tab" data-tab="sessions" onclick="selectMobileTab('sessions')">Sessions</button>
+  <button class="tab" data-tab="content" onclick="selectMobileTab('content')">Content</button>
+</nav>
 
 <!-- ═══════════ MAIN FRAME ═══════════ -->
 <div class="frame">
@@ -1592,33 +1643,8 @@ html,body{
       <!-- Board selector -->
       <div class="board-selector" id="kanbanBoardSelector"></div>
 
-      <!-- 3-column grid -->
-      <div class="kanban-grid" id="kanbanGrid">
-        <!-- Backlog -->
-        <div class="kanban-col">
-          <div class="kanban-col-header red">
-            <span class="col-name">&#x25C6; BACKLOG</span>
-            <span class="col-count" id="kanbanCountBacklog">0</span>
-          </div>
-          <div id="kanbanColBacklog"></div>
-        </div>
-        <!-- In Progress -->
-        <div class="kanban-col">
-          <div class="kanban-col-header amber">
-            <span class="col-name">&#x25B6; IN PROGRESS</span>
-            <span class="col-count" id="kanbanCountInProgress">0</span>
-          </div>
-          <div id="kanbanColInProgress"></div>
-        </div>
-        <!-- Done -->
-        <div class="kanban-col">
-          <div class="kanban-col-header green">
-            <span class="col-name">&#x2714; DONE</span>
-            <span class="col-count" id="kanbanCountDone">0</span>
-          </div>
-          <div id="kanbanColDone"></div>
-        </div>
-      </div>
+      <!-- Dynamic column grid -->
+      <div class="kanban-grid" id="kanbanGrid"></div>
     </div>
   </section>
 
@@ -1800,6 +1826,29 @@ html,body{
     });
   });
 })();
+
+/* ── MOBILE NAV MENU ── */
+function toggleMobileMenu(){
+  var open = document.body.classList.toggle('mobile-nav-open');
+  // Highlight the active tab in the mobile dropdown
+  if (open) {
+    var activeTab = document.querySelector('#tabBar .tab.active');
+    var activeName = activeTab ? activeTab.dataset.tab : 'overview';
+    var mobileTabs = document.querySelectorAll('#mobileNavDropdown .tab');
+    mobileTabs.forEach(function(t){
+      t.classList.toggle('active', t.dataset.tab === activeName);
+    });
+  }
+}
+function closeMobileMenu(){
+  document.body.classList.remove('mobile-nav-open');
+}
+function selectMobileTab(name){
+  closeMobileMenu();
+  // Click the corresponding desktop tab to trigger existing tab switching
+  var desktopTab = document.querySelector('#tabBar .tab[data-tab="' + name + '"]');
+  if (desktopTab) desktopTab.click();
+}
 
 /* ── UTC CLOCK ── */
 (function(){
@@ -2188,6 +2237,10 @@ function renderSparkline(d){
   var w = canvas.offsetWidth || 320;
   var h = 80;
 
+  // Match drawing buffer to CSS size for crisp rendering
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
+
   // Aggregate 7-day data across all profiles' state_db_stats
   var points = [0,0,0,0,0,0,0];
   var profiles = d.profiles || [];
@@ -2212,8 +2265,8 @@ function renderSparkline(d){
     points = dayBuckets;
   }
 
-  // Skip redraw if points haven't changed
-  var pointsKey = points.join(',');
+  // Skip redraw if points AND width haven't changed
+  var pointsKey = points.join(',') + '|w' + w;
   if (pointsKey === _sparklinePrev) return;
   _sparklinePrev = pointsKey;
 
@@ -3037,27 +3090,66 @@ function escHtml(str){
 }
 
 /* Render a single board's columns */
+var _KANBAN_COL_GLYPHS = {
+  triage:   '\u25C7', // ◇
+  todo:     '\u25C6', // ◆
+  ready:    '\u25B6', // ▶
+  running:  '\u25CF', // ●
+  blocked:  '\u26A0', // ⚠
+  done:     '\u2714', // ✔
+  archived: '\u2716', // ✖
+};
+var _KANBAN_COL_COLORS = {
+  triage:   'magenta',
+  todo:     'red',
+  ready:    'amber',
+  running:  'cyan',
+  blocked:  'red',
+  done:     'green',
+  archived: 'muted',
+};
+var _KANBAN_COL_LABELS = {
+  triage:   'Triage',
+  todo:     'To Do',
+  ready:    'Ready',
+  running:  'Running',
+  blocked:  'Blocked',
+  done:     'Done',
+  archived: 'Archived',
+};
+var _KANBAN_COL_ORDER = ['triage','todo','ready','running','blocked','done','archived'];
+
 function renderBoard(boardName){
   var board = KANBAN_STATE.boards[boardName];
   if (!board) return;
 
-  var cols = board.columns || {backlog:[], in_progress:[], done:[]};
+  var cols = board.columns || {};
+  var grid = document.getElementById('kanbanGrid');
+  if (!grid) return;
 
-  // Column content
-  document.getElementById('kanbanColBacklog').innerHTML =
-    cols.backlog.length ? cols.backlog.map(buildTaskCard).join('') :
-    '<div class="kanban-col-empty">&#x25C7; NO TASKS</div>';
-  document.getElementById('kanbanColInProgress').innerHTML =
-    cols.in_progress.length ? cols.in_progress.map(buildTaskCard).join('') :
-    '<div class="kanban-col-empty">&#x25C7; NO TASKS</div>';
-  document.getElementById('kanbanColDone').innerHTML =
-    cols.done.length ? cols.done.map(buildTaskCard).join('') :
-    '<div class="kanban-col-empty">&#x25C7; NO TASKS</div>';
+  var html = '';
+  for (var ci = 0; ci < _KANBAN_COL_ORDER.length; ci++) {
+    var colKey = _KANBAN_COL_ORDER[ci];
+    var tasks = cols[colKey] || [];
+    var glyph = _KANBAN_COL_GLYPHS[colKey] || '\u25C7';
+    var label = _KANBAN_COL_LABELS[colKey] || colKey;
+    var color = _KANBAN_COL_COLORS[colKey] || 'muted';
 
-  // Count badges
-  document.getElementById('kanbanCountBacklog').textContent = cols.backlog.length;
-  document.getElementById('kanbanCountInProgress').textContent = cols.in_progress.length;
-  document.getElementById('kanbanCountDone').textContent = cols.done.length;
+    html += '<div class="kanban-col">';
+    html += '  <div class="kanban-col-header ' + color + '">';
+    html += '    <span class="col-name">' + glyph + ' ' + label + '</span>';
+    html += '    <span class="col-count">' + tasks.length + '</span>';
+    html += '  </div>';
+    if (tasks.length) {
+      for (var ti = 0; ti < tasks.length; ti++) {
+        html += buildTaskCard(tasks[ti]);
+      }
+    } else {
+      html += '  <div class="kanban-col-empty">\u25C7 NO TASKS</div>';
+    }
+    html += '</div>';
+  }
+  grid.innerHTML = html;
 
   // Update board selector active state
   var pills = document.querySelectorAll('#kanbanBoardSelector .board-pill');
