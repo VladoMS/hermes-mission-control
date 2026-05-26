@@ -1365,18 +1365,22 @@ def _read_kanban_tasks(db_path):
         db = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         db.execute("PRAGMA query_only=1")
         rows = db.execute(
-            "SELECT id, title, assignee, status, priority, created_at, "
-            "started_at, completed_at "
+            "SELECT id, title, body, assignee, status, priority, "
+            "created_at, started_at, completed_at, "
+            "workspace_path, skills, result, created_by, model_override "
             "FROM tasks ORDER BY priority DESC, created_at ASC"
         ).fetchall()
         db.close()
 
         tasks = []
         for r in rows:
-            tid, title, assignee, status, priority, created_at, started_at, completed_at = r
+            tid, title, body, assignee, status, priority, \
+                created_at, started_at, completed_at, \
+                workspace_path, skills, result, created_by, model_override = r
             tasks.append({
                 "id": tid,
                 "title": title or "",
+                "body": body or "",
                 "assignee": assignee or "",
                 "status": status or "todo",
                 "priority": priority or 0,
@@ -1384,6 +1388,11 @@ def _read_kanban_tasks(db_path):
                 "created_at": created_at,
                 "started_at": started_at,
                 "completed_at": completed_at,
+                "workspace_path": workspace_path or "",
+                "skills": skills or "",
+                "result": result or "",
+                "created_by": created_by or "",
+                "model_override": model_override or "",
                 "labels": [],
             })
         return tasks

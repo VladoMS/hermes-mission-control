@@ -368,7 +368,7 @@ html,body{
 
 .kanban-grid{
   display:grid;
-  grid-template-columns:repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns:repeat(7, 1fr);
   gap:16px;
   align-items:start;
 }
@@ -407,6 +407,7 @@ html,body{
   margin-bottom:8px;
   transition:border-color .15s;
   position:relative;
+  cursor:pointer;
 }
 .kanban-card:hover{border-color:var(--line-strong)}
 .kanban-card-title{
@@ -473,6 +474,78 @@ html,body{
   color:var(--text-faint);
   text-transform:uppercase;
 }
+
+/* ── TASK DETAIL MODAL ── */
+.modal-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,0.7);
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  z-index:100;
+  align-items:center;justify-content:center;
+}
+.modal-overlay.open{display:flex}
+.modal-box{
+  background:var(--bg-elevated);
+  border:1px solid var(--line-strong);
+  max-width:620px;width:calc(100% - 40px);
+  max-height:85vh;
+  overflow-y:auto;
+  padding:0;
+  position:relative;
+  clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
+}
+.modal-close{
+  position:absolute;top:10px;right:14px;
+  background:transparent;border:none;
+  color:var(--text-dim);font-size:18px;
+  cursor:pointer;line-height:1;
+  font-family:var(--font-mono);
+  transition:color .15s;
+}
+.modal-close:hover{color:var(--red)}
+.modal-head{
+  padding:20px 24px 16px;
+  border-bottom:1px solid var(--line);
+}
+.modal-head-title{
+  font-family:var(--font-display);font-size:20px;font-weight:600;
+  color:var(--text-hi);letter-spacing:0.03em;
+  line-height:1.3;margin:0 30px 10px 0;
+}
+.modal-head-meta{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.modal-body{
+  padding:18px 24px 24px;
+}
+.modal-section{
+  margin-bottom:18px;
+}
+.modal-section-label{
+  font-family:var(--font-mono);font-size:9px;
+  letter-spacing:0.18em;text-transform:uppercase;
+  color:var(--text-faint);
+  margin-bottom:6px;
+}
+.modal-section-value{
+  font-size:14px;color:var(--text);line-height:1.5;
+  white-space:pre-wrap;word-break:break-word;
+}
+.modal-section-value.empty{color:var(--text-faint);font-style:italic}
+.modal-field-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;
+}
+.modal-field{}
+.modal-field-label{
+  font-family:var(--font-mono);font-size:9px;
+  letter-spacing:0.15em;text-transform:uppercase;
+  color:var(--text-faint);margin-bottom:4px;
+}
+.modal-field-value{
+  font-size:13px;color:var(--text);line-height:1.4;
+}
+.modal-field-value.mono{font-size:11px}
 
 /* ── CONTENT TAB LAYOUT ── */
 .content-layout{
@@ -1210,6 +1283,9 @@ html,body{
 }
 
 /* ── RESPONSIVE ── */
+@media(max-width:1100px){
+  .kanban-grid{grid-template-columns:repeat(4, 1fr);}
+}
 @media(max-width:900px){
   .top-bar .tabs{overflow-x:auto;gap:0;}
   .top-bar .tab{font-size:9px;padding:4px 10px;}
@@ -3113,6 +3189,7 @@ function renderProfiles(){
 
 /* ═══════════ KANBAN TAB RENDERER ═══════════ */
 var KANBAN_STATE = { activeBoard: null, boards: {} };
+var KANBAN_TASK_MAP = {}; // task id → full task object for modal
 
 /* Age helper: turns unix timestamp into human-readable age string */
 function formatAge(ts){
@@ -3129,7 +3206,7 @@ function formatAge(ts){
 
 /* Build a single task card HTML */
 function buildTaskCard(task){
-  var html = '<div class="kanban-card">';
+  var html = '<div class="kanban-card" data-task-id="' + escHtml(task.id) + '" onclick="openTaskModal(this)">';
 
   // Title
   html += '<div class="kanban-card-title">' + escHtml(task.title) + '</div>';
@@ -3158,6 +3235,10 @@ function buildTaskCard(task){
   html += '</div>';
 
   html += '</div>';
+
+  // Store full task data for modal lookup
+  KANBAN_TASK_MAP[task.id] = task;
+
   return html;
 }
 
@@ -3166,6 +3247,99 @@ function escHtml(str){
   div.appendChild(document.createTextNode(str));
   return div.innerHTML;
 }
+
+/* ── Task modal ── */
+function formatDateTime(ts){
+  if (!ts) return '—';
+  var d = new Date(ts * 1000);
+  return d.toISOString().slice(0, 16).replace('T', ' ');
+}
+function openTaskModal(cardEl){
+  var taskId = cardEl.getAttribute('data-task-id');
+  var task = KANBAN_TASK_MAP[taskId];
+  if (!task) return;
+
+  var overlay = document.getElementById('taskModalOverlay');
+  var head = document.getElementById('taskModalHead');
+  var body = document.getElementById('taskModalBody');
+
+  var colKey = _KANBAN_COL_LABELS[task.status] || task.status;
+
+  // Head
+  var headHtml = '';
+  headHtml += '<div class="modal-head-title">' + escHtml(task.title) + '</div>';
+  headHtml += '<div class="modal-head-meta">';
+  headHtml += '<span class="pri-chip ' + (task.priority_name || 'low') + '">' + (task.priority_name || 'low') + '</span>';
+  headHtml += '<span class="chip">' + colKey + '</span>';
+  if (task.assignee) headHtml += '<span class="assignee-badge">@' + escHtml(task.assignee) + '</span>';
+  headHtml += '</div>';
+  head.innerHTML = headHtml;
+
+  // Body
+  var bodyHtml = '';
+
+  // Description
+  if (task.body){
+    bodyHtml += '<div class="modal-section">';
+    bodyHtml += '<div class="modal-section-label">Description</div>';
+    bodyHtml += '<div class="modal-section-value">' + escHtml(task.body) + '</div>';
+    bodyHtml += '</div>';
+  }
+
+  // Detail grid
+  bodyHtml += '<div class="modal-section">';
+  bodyHtml += '<div class="modal-section-label">Details</div>';
+  bodyHtml += '<div class="modal-field-grid">';
+
+  bodyHtml += '<div class="modal-field"><div class="modal-field-label">Status</div><div class="modal-field-value">' + colKey + '</div></div>';
+
+  if (task.created_by){
+    bodyHtml += '<div class="modal-field"><div class="modal-field-label">Created By</div><div class="modal-field-value">@' + escHtml(task.created_by) + '</div></div>';
+  }
+
+  bodyHtml += '<div class="modal-field"><div class="modal-field-label">Created</div><div class="modal-field-value mono">' + formatDateTime(task.created_at) + '</div></div>';
+  bodyHtml += '<div class="modal-field"><div class="modal-field-label">Started</div><div class="modal-field-value mono">' + formatDateTime(task.started_at) + '</div></div>';
+
+  if (task.completed_at){
+    bodyHtml += '<div class="modal-field"><div class="modal-field-label">Completed</div><div class="modal-field-value mono">' + formatDateTime(task.completed_at) + '</div></div>';
+  }
+
+  if (task.skills){
+    bodyHtml += '<div class="modal-field"><div class="modal-field-label">Skills</div><div class="modal-field-value mono">' + escHtml(task.skills) + '</div></div>';
+  }
+
+  if (task.model_override){
+    bodyHtml += '<div class="modal-field"><div class="modal-field-label">Model</div><div class="modal-field-value mono">' + escHtml(task.model_override) + '</div></div>';
+  }
+
+  if (task.workspace_path){
+    bodyHtml += '<div class="modal-field" style="grid-column:1 / -1"><div class="modal-field-label">Workspace</div><div class="modal-field-value mono">' + escHtml(task.workspace_path) + '</div></div>';
+  }
+
+  bodyHtml += '</div></div>';
+
+  // Result
+  if (task.result){
+    bodyHtml += '<div class="modal-section">';
+    bodyHtml += '<div class="modal-section-label">Result</div>';
+    bodyHtml += '<div class="modal-section-value">' + escHtml(task.result) + '</div>';
+    bodyHtml += '</div>';
+  }
+
+  body.innerHTML = bodyHtml;
+
+  overlay.classList.add('open');
+}
+function closeTaskModal(){
+  document.getElementById('taskModalOverlay').classList.remove('open');
+}
+
+// Global keyboard: Escape closes modal
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape'){
+    closeTaskModal();
+  }
+});
 
 /* Render a single board's columns */
 var _KANBAN_COL_GLYPHS = {
@@ -3552,5 +3726,15 @@ var ContentTab = (function(){
   };
 })();
 </script>
+
+<!-- ═══════════ TASK DETAIL MODAL ═══════════ -->
+<div class="modal-overlay" id="taskModalOverlay" onclick="if(event.target===this)closeTaskModal()">
+  <div class="modal-box" id="taskModalBox">
+    <button class="modal-close" onclick="closeTaskModal()">✕</button>
+    <div class="modal-head" id="taskModalHead"></div>
+    <div class="modal-body" id="taskModalBody"></div>
+  </div>
+</div>
+
 </body>
 </html>
