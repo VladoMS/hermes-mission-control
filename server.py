@@ -2048,7 +2048,7 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
                 f"  docker logs --follow --tail {tail} {app_name}.web.1 2>&1;"
                 f"else"
                 f"  for ctr in $containers; do"
-                f"    docker logs --follow --tail {tail} \"$ctr\" 2>&1 | sed \"s/^/[\\$ctr] /\" &"
+                f"    docker logs --follow --tail {tail} \"$ctr\" 2>&1 | sed -u \"s/^/[\\$ctr] /\" &"
                 f"  done;"
                 f"  wait;"
                 f"fi"
