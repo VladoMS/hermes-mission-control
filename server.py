@@ -1641,10 +1641,10 @@ def _ssh(host, cmd, timeout=10):
 
 def _get_dokku_data(host):
     """Collect Dokku app list and container status from a remote host.
-    Returns dict with apps and containers, or None if not a Dokku host."""
+    Returns dict with apps, containers, and per-app stats, or None if not a Dokku host."""
     if host == "localhost":
         return None
-    result = {"apps": [], "containers": [], "errors": []}
+    result = {"apps": [], "containers": [], "container_stats": {}, "errors": []}
 
     # Dokku apps — try command, fall back gracefully
     out, rc = _ssh(host, "dokku apps:list 2>/dev/null || dokku ls 2>/dev/null")
@@ -1654,7 +1654,6 @@ def _get_dokku_data(host):
             if line and line != "=====> My Apps" and not line.startswith("---"):
                 result["apps"].append(line)
     elif out:
-        # Command might have output even with non-zero exit
         for line in out.split("\n"):
             line = line.strip()
             if line and line != "=====> My Apps" and not line.startswith("---"):
@@ -1672,6 +1671,29 @@ def _get_dokku_data(host):
                     "status": parts[2],
                     "name": parts[3],
                 })
+
+    # Docker stats — per-container CPU/MEM (one-shot, no stream)
+    out, rc = _ssh(host, "docker stats --no-stream --format '{{.Name}}\\t{{.CPUPerc}}\\t{{.MemPerc}}\\t{{.MemUsage}}' 2>/dev/null", timeout=8)
+    if rc == 0 and out:
+        for line in out.split("\n"):
+            parts = line.split("\t")
+            if len(parts) >= 4:
+                name = parts[0]
+                cpu = parts[1].rstrip('%')
+                mem = parts[2].rstrip('%')
+                mem_usage = parts[3]
+                try:
+                    result["container_stats"][name] = {
+                        "cpu_pct": float(cpu),
+                        "mem_pct": float(mem),
+                        "mem_usage": mem_usage,
+                    }
+                except ValueError:
+                    result["container_stats"][name] = {
+                        "cpu_pct": 0,
+                        "mem_pct": 0,
+                        "mem_usage": mem_usage,
+                    }
 
     return result
 
@@ -1894,6 +1916,8 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
             self._serve_content_get(qs)
         elif path == "/events":
             self._serve_sse()
+        elif path == "/api/dokku/logs":
+            self._serve_dokku_logs(qs)
         # Static assets (served from dist/)
         elif path.startswith("/assets/") or path == "/favicon.ico":
             self._serve_static(path)
@@ -1985,6 +2009,57 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.flush()
                 time.sleep(SSE_INTERVAL)
         except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
+
+    def _serve_dokku_logs(self, qs):
+        """SSE stream of docker logs for a Dokku app container."""
+        server_name = (qs.get("server", [None])[0] or "").strip()
+        app_name = (qs.get("app", [None])[0] or "").strip()
+        tail = (qs.get("tail", ["100"])[0] or "100").strip()
+
+        if not server_name or not app_name:
+            self.send_error(HTTPStatus.BAD_REQUEST, "Missing server or app query parameter")
+            return
+
+        # Resolve server host from servers.json
+        servers_cfg = _read_servers_config()
+        host = None
+        for srv in servers_cfg:
+            if srv.get("name") == server_name:
+                host = srv.get("host")
+                break
+        if not host or host == "localhost":
+            self.send_error(HTTPStatus.BAD_REQUEST, f"Server '{server_name}' not found or is localhost")
+            return
+
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self._cors_headers()
+        self.end_headers()
+
+        try:
+            cmd = f"docker logs --follow --tail {tail} {app_name}.web.1 2>&1"
+            p = subprocess.Popen(
+                ["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes", host, cmd],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+            )
+            for line in iter(p.stdout.readline, ""):
+                if not line:
+                    break
+                # SSE format — strip control chars, escape for JSON
+                clean = line.rstrip("\n").replace("\\", "\\\\").replace('"', '\\"')
+                msg = f"data: {clean}\n\n"
+                try:
+                    self.wfile.write(msg.encode("utf-8"))
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError, OSError):
+                    break
+            p.terminate()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
+        except Exception:
             pass
 
     def _serve_content_list(self):

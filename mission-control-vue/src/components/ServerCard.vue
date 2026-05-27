@@ -48,27 +48,46 @@
         <div v-if="!server.dokku" class="srv-warn">No Dokku data available</div>
         <template v-else>
           <div v-if="server.dokku.errors?.length" class="srv-warn">{{ server.dokku.errors.join(', ') }}</div>
-          <div v-for="app in server.dokku.apps || []" :key="app" class="dokku-app mono">
-            {{ app }}
-          </div>
+          <DokkuGrid
+            :dokku="server.dokku"
+            :server-name="server.name"
+            @open-logs="openLogs"
+          />
         </template>
       </div>
     </div>
+
+    <!-- Log viewer modal -->
+    <LogViewer
+      :visible="logsVisible"
+      :app-name="logsApp"
+      :server-name="server.name"
+      @close="logsVisible = false"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import HealthBar from './HealthBar.vue'
+import DokkuGrid from './DokkuGrid.vue'
+import LogViewer from './LogViewer.vue'
 
 const props = defineProps({
   server: { type: Object, required: true },
 })
 
 const sections = reactive({ health: true, crons: false, dokku: false })
+const logsVisible = ref(false)
+const logsApp = ref('')
 
 function toggleSection(key) {
   sections[key] = !sections[key]
+}
+
+function openLogs(appName) {
+  logsApp.value = appName
+  logsVisible.value = true
 }
 
 const health = computed(() => {
@@ -140,10 +159,4 @@ const dokkuAppCount = computed(() => props.server.dokku?.apps?.length || 0)
 }
 .cron-schedule { color: var(--amber-soft); min-width: 60px; font-size: 9px; }
 .cron-name { color: var(--text-dim); }
-.dokku-app {
-  font-size: 10px;
-  color: var(--text-dim);
-  padding: 3px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.03);
-}
 </style>
