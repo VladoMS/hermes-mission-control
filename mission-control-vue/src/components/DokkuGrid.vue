@@ -1,45 +1,57 @@
 <template>
-  <div class="dokku-grid">
-    <div v-for="app in apps" :key="app.name" class="dokku-card">
-      <!-- App header -->
-      <div class="app-header">
-        <span class="app-dot" :style="{ background: appDotColor(app) }"></span>
-        <span class="app-name">{{ app.name }}</span>
-        <span class="app-containers mono">{{ app.containers.length }} ctr</span>
-      </div>
-
-      <!-- Container rows -->
-      <div class="app-containers-list">
-        <div v-for="ctr in app.containers" :key="ctr.name" class="ctr-row">
-          <span class="ctr-name mono">{{ ctr.shortName }}</span>
-          <span class="ctr-status" :class="ctr.statusClass">{{ ctr.statusShort }}</span>
-          <div class="ctr-bars">
-            <div class="ctr-bar-row">
-              <span class="ctr-bar-label">CPU</span>
-              <div class="ctr-bar"><div class="fill" :style="barStyle(ctr.stats?.cpu_pct, 'cpu')"></div></div>
-              <span class="ctr-bar-pct" :style="{ color: pctColor(ctr.stats?.cpu_pct) }">{{ fmtPct(ctr.stats?.cpu_pct) }}</span>
-            </div>
-            <div class="ctr-bar-row">
-              <span class="ctr-bar-label">MEM</span>
-              <div class="ctr-bar"><div class="fill" :style="barStyle(ctr.stats?.mem_pct, 'mem')"></div></div>
-              <span class="ctr-bar-pct" :style="{ color: pctColor(ctr.stats?.mem_pct) }">{{ fmtPct(ctr.stats?.mem_pct) }}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Logs button -->
-      <button class="btn ghost app-logs-btn" @click="$emit('openLogs', app.name)">
-        LOGS
+  <div>
+    <!-- Show/hidden toggle -->
+    <div class="dokku-controls" v-if="hiddenCount > 0">
+      <button class="chip" :class="{ cyan: showingHidden }" @click="showingHidden = !showingHidden">
+        {{ showingHidden ? 'HIDE' : 'SHOW' }} {{ hiddenCount }} HIDDEN
       </button>
     </div>
 
-    <div v-if="apps.length === 0" class="grid-empty mono">No Dokku apps</div>
+    <div class="dokku-grid">
+      <div v-for="app in visibleApps" :key="app.name" class="dokku-card" :class="{ hidden: app._hidden }">
+        <!-- App header -->
+        <div class="app-header">
+          <span class="app-dot" :style="{ background: app.color }"></span>
+          <span class="app-name">{{ app.name }}</span>
+          <span class="app-containers mono">{{ app.containers.length }} ctr</span>
+        </div>
+
+        <!-- Container rows -->
+        <div class="app-containers-list">
+          <div v-for="ctr in app.containers" :key="ctr.name" class="ctr-row">
+            <span class="ctr-name mono">{{ ctr.shortName }}</span>
+            <span class="ctr-status" :class="ctr.statusClass">{{ ctr.statusShort }}</span>
+            <div class="ctr-bars">
+              <div class="ctr-bar-row">
+                <span class="ctr-bar-label">CPU</span>
+                <div class="ctr-bar"><div class="fill" :style="barStyle(ctr.stats?.cpu_pct)"></div></div>
+                <span class="ctr-bar-pct" :style="{ color: pctColor(ctr.stats?.cpu_pct) }">{{ fmtPct(ctr.stats?.cpu_pct) }}</span>
+              </div>
+              <div class="ctr-bar-row">
+                <span class="ctr-bar-label">MEM</span>
+                <div class="ctr-bar"><div class="fill" :style="barStyle(ctr.stats?.mem_pct)"></div></div>
+                <span class="ctr-bar-pct" :style="{ color: pctColor(ctr.stats?.mem_pct) }">{{ fmtPct(ctr.stats?.mem_pct) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="app-actions">
+          <button class="btn ghost app-logs-btn" @click="$emit('openLogs', app.name)">LOGS</button>
+          <button class="app-hide-btn" :title="app._hidden ? 'Show' : 'Hide'" @click="toggleHidden(app.name)">
+            {{ app._hidden ? '◀' : '▶' }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="allApps.length === 0" class="grid-empty mono">No Dokku apps</div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps({
   dokku: { type: Object, default: null },
@@ -47,22 +59,61 @@ const props = defineProps({
 })
 defineEmits(['openLogs'])
 
+const STORAGE_KEY = 'mc_dokku_hidden'
+
 const COLORS = ['#ff3b1f', '#1ec8ff', '#4ade80', '#ffb020', '#d946ef', '#fbbf24', '#5cd9ff', '#ffc657']
 
-const apps = computed(() => {
+// ── Hidden apps (localStorage-backed Set per server) ──
+function loadHidden() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    const all = raw ? JSON.parse(raw) : {}
+    return new Set(all[props.serverName] || [])
+  } catch { return new Set() }
+}
+
+const hiddenSet = ref(loadHidden())
+const showingHidden = ref(false)
+
+function persist() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    const all = raw ? JSON.parse(raw) : {}
+    all[props.serverName] = [...hiddenSet.value]
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all))
+  } catch {}
+}
+
+function toggleHidden(appName) {
+  if (hiddenSet.value.has(appName)) {
+    hiddenSet.value.delete(appName)
+  } else {
+    hiddenSet.value.add(appName)
+  }
+  persist()
+}
+
+// Re-sync when server changes
+watch(() => props.serverName, () => {
+  hiddenSet.value = loadHidden()
+  showingHidden.value = false
+})
+
+// ── Build app list ──
+const allApps = computed(() => {
   if (!props.dokku) return []
   const appNames = props.dokku.apps || []
   const containers = props.dokku.containers || []
   const stats = props.dokku.container_stats || {}
 
   return appNames.map((name, idx) => {
-    // Find containers belonging to this app (e.g., "appname.web.1" or "appname.scheduler.1")
     const appContainers = containers.filter(c =>
       c.name === name + '.web.1' || c.name.startsWith(name + '.')
     )
     return {
       name,
       color: COLORS[idx % COLORS.length],
+      _hidden: hiddenSet.value.has(name),
       containers: appContainers.map(c => ({
         ...c,
         shortName: c.name.replace(name + '.', ''),
@@ -74,21 +125,24 @@ const apps = computed(() => {
   })
 })
 
-function appDotColor(app) { return app.color }
+const hiddenCount = computed(() => allApps.value.filter(a => a._hidden).length)
 
+const visibleApps = computed(() => {
+  if (showingHidden.value) return allApps.value
+  return allApps.value.filter(a => !a._hidden)
+})
+
+// ── Helpers ──
 function statusShort(status) {
   if (!status) return '--'
   if (status.toLowerCase().includes('up')) return 'UP'
   if (status.toLowerCase().includes('exited')) return 'DOWN'
   return status.slice(0, 12)
 }
-
 function statusClass(status) {
   if (!status) return ''
-  if (status.toLowerCase().includes('up')) return 'up'
-  return 'down'
+  return status.toLowerCase().includes('up') ? 'up' : 'down'
 }
-
 function fmtPct(v) { return v != null ? Math.round(v) + '%' : '--' }
 function pctColor(v) {
   if (v == null) return 'var(--text-faint)'
@@ -96,14 +150,20 @@ function pctColor(v) {
   if (v > 70) return 'var(--amber)'
   return 'var(--text-dim)'
 }
-function barStyle(v, type) {
+function barStyle(v) {
   if (v == null) return { width: '0%' }
-  const p = Math.min(v, 100)
-  return { width: p + '%' }
+  return { width: Math.min(v, 100) + '%' }
 }
 </script>
 
 <style scoped>
+.dokku-controls {
+  margin-bottom: 8px;
+}
+.dokku-controls .chip {
+  cursor: pointer;
+  font-size: 9px;
+}
 .dokku-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -120,6 +180,10 @@ function barStyle(v, type) {
   background: var(--bg-deep);
   border: 1px solid var(--line);
   padding: 12px;
+  transition: opacity 0.2s;
+}
+.dokku-card.hidden {
+  opacity: 0.45;
 }
 .app-header {
   display: flex;
@@ -141,11 +205,7 @@ function barStyle(v, type) {
   padding: 4px 0;
   border-bottom: 1px solid rgba(255,255,255,0.03);
 }
-.ctr-name {
-  font-size: 9px;
-  color: var(--text-dim);
-  margin-bottom: 2px;
-}
+.ctr-name { font-size: 9px; color: var(--text-dim); margin-bottom: 2px; }
 .ctr-status { font-size: 8px; margin-left: 4px; }
 .ctr-status.up { color: var(--green); }
 .ctr-status.down { color: var(--red); }
@@ -181,11 +241,34 @@ function barStyle(v, type) {
   width: 22px;
   text-align: right;
 }
+
+/* Actions row */
+.app-actions {
+  display: flex;
+  gap: 4px;
+}
 .app-logs-btn {
-  width: 100%;
+  flex: 1;
   justify-content: center;
   font-size: 9px;
   padding: 6px 10px;
+}
+.app-hide-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 8px;
+  flex-shrink: 0;
+}
+.app-hide-btn:hover {
+  color: var(--text-hi);
+  border-color: var(--line-strong);
 }
 
 @media (max-width: 1100px) {
