@@ -6,3 +6,5 @@ __pycache__/
 *.pyc
 .env
 dashboard.db
+mission-control-vue/node_modules/
+mission-control-vue/dist/
