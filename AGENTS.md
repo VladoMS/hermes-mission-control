@@ -8,23 +8,49 @@ A single-pilot dashboard for Hermes Agent. Not a multi-agent system. Not "AgentO
 
 The dashboard reads Hermes data sources read-only. The only writes are to the local `dashboard.db` (retention cache) and `~/.hermes/content/` (document save endpoint).
 
-## 1. Tech constraints (DO NOT CHANGE)
+## 1. Architecture (v2 — Vue 3 migration)
 
-- **No build step.** Single `index.html` + `server.py`. No React, no Babel, no npm, no bundler.
-- **Python stdlib only.** `http.server`, `sqlite3`, `json`, `subprocess`, `threading`, `os`, `time`. No pip packages.
-- **Vanilla JS only.** No frameworks. No jQuery. Use the patterns already in the file.
-- **Vladoms-design** aesthetic. Not generic glassmorphism. Not Material. Not Tailwind.
-- **No emoji.** Use geometric glyphs: `◆ ▶ › → ─`
-- **SSE + polling.** SSE on `/events` every 5s. Polling fallback every 8s. Both must work.
+### Backend: Python stdlib only
+
+- `http.server`, `sqlite3`, `json`, `subprocess`, `threading`, `os`, `time`. No pip packages.
+- `server.py` — snapshot assembly, SSE streaming, content API, Dokku log streaming.
+- Port `0.0.0.0:51763`. Firewall restricts to Tailscale CGNAT only. Never expose to public internet.
+
+### Frontend: Vue 3 + Vite
+
+- **DO NOT** edit `dist/` files directly — they are build output from `mission-control-vue/`.
+- Source lives in `mission-control-vue/src/`. Build with `npm run build` from `mission-control-vue/`.
+- The old `index.html` (vanilla JS) is archived in `backups/`. Do not restore it.
+
+### Build pipeline
+
+```bash
+cd mission-control-vue && npm run build   # → ../dist/
+sudo systemctl restart mission-control     # Serve new build
+```
 
 ## 2. File layout
 
 ```
-server.py              — Backend: HTTP server, data readers, snapshot assembly, SSE
-index.html             — Frontend: HTML structure, CSS (vladoms tokens), JS (tab renderers)
-dashboard.db           — Auto-created by server.py. 30-day snapshot retention. Never commit.
-backups/               — Pre-change backups. Server auto-saves before modifications.
-start.sh / stop.sh     — Launch scripts
+server.py                           — Backend: HTTP server, data readers, snapshot assembly, SSE
+dist/                               — Vue 3 production build (served by server.py)
+  index.html                        — SPA entry point
+  assets/                           — Hashed JS/CSS chunks (6 lazy-loaded page chunks)
+mission-control-vue/                — Vue 3 source
+  src/
+    main.js                         — App bootstrap (Pinia + Router)
+    App.vue                         — Root: BackgroundLayers, TopBar, MobileNavDrawer, <router-view>
+    router/index.js                 — 6 routes (overview, profiles, kanban, servers, sessions, content)
+    stores/                         — 7 Pinia stores (see README)
+    composables/useSSE.js           — EventSource connection + polling fallback
+    views/                          — 6 page components
+    components/                     — 28 reusable components
+    assets/tokens.css               — Vladoms CSS custom properties + primitives
+  vite.config.js                    — Proxy /events + /api → :51763
+dashboard.db                        — Auto-created. 30-day snapshot retention. Never commit.
+servers.json                        — Server list config
+backups/                            — Pre-change backups of the old index.html
+start.sh / stop.sh                  — Convenience launch scripts (systemd is the primary runner)
 ```
 
 ## 3. Data sources (all read-only)
@@ -44,31 +70,40 @@ start.sh / stop.sh     — Launch scripts
 | Content files | `{HERMES_HOME}/content/{profile}/*.md` | `list_content()`, `read_content()` |
 | VPS health (hermes) | `/proc/stat`, `/proc/meminfo`, `os.statvfs` | `get_hermes_health()` |
 | VPS health (prod) | `ssh prod` + same `/proc` reads | `get_prod_health()` (30s TTL) |
+| Dokku apps/containers | `ssh prod dokku apps:list` + `docker ps` | `_get_dokku_data()` |
+| Container stats | `ssh prod docker stats --no-stream` | Added to `container_stats` in dokku dict |
+| Docker logs (live) | `ssh prod docker logs --follow` | SSE endpoint `/api/dokku/logs` |
 
 `HERMES_HOME` is resolved by `_resolve_hermes_home()` — handles the case where the server runs under a kanban profile with nested HOME.
 
 ## 4. Gotchas (real bugs we hit — don't repeat)
 
-### 4.1 Parallel file editing is forbidden
-If multiple kanban tasks need to edit `server.py` or `index.html`, chain them sequentially via parent→child dependencies. Never make them parallel siblings with the same parent. We discovered this when Phases 3-8 all edited the same files simultaneously during the initial build — multiple workers racing on the same files produced merge conflicts, lost code, and syntax errors.
+### 4.1 Don't edit dist/ directly
+`dist/` is build output. All UI changes go in `mission-control-vue/src/`, followed by `npm run build`. Editing dist files will be clobbered on the next build.
 
-### 4.2 SSE event type mismatch
-The server MUST send `event: snapshot\ndata: {json}\n\n`. If it sends only `data: {json}\n\n` (no event field), the frontend's `addEventListener('snapshot', ...)` will never fire — data arrives but `window.__mc.snapshot` stays null.
+### 4.2 SSE event type is critical
+The snapshot SSE stream MUST send `event: snapshot\ndata: {json}\n\n`. The frontend's EventSource listener is registered with `addEventListener('snapshot', ...)`. If the event field is missing, the listener never fires.
 
-### 4.3 Script load order matters
-`init()` was originally an immediate IIFE that ran before the `Profiles`, `Kanban`, and `ContentTab` variables were defined (they were lower in the file). Changed to a `DOMContentLoaded` listener. Any new top-level render calls MUST follow the same pattern — defer to DOMContentLoaded, or place them at the very end of the script.
+### 4.3 Dokku log SSE uses default message event
+`/api/dokku/logs` sends plain `data: ...\n\n` (no event field). The frontend listens via `source.onmessage`. This is intentional to keep the payload simple for line-by-line streaming.
 
-### 4.4 Change detection prevents animation spam
-Every SSE push triggers render calls. If a renderer replaces DOM content or redraws a canvas unconditionally, it produces visible flicker/reset. Always compare current data with previous before touching DOM. Patterns in use:
-- `_activityFeedPrev` — JSON string comparison for activity feed rows
-- `_sparklinePrev` — comma-joined point comparison for sparkline canvas
-- `tpTotal.textContent !== String(newTotal)` — text-only-updates-when-different
+### 4.4 Vue reactivity replaces imperative change detection
+The vanilla JS dashboard used fingerprint-based change detection (JSON diffs before touching DOM). In Vue, Pinia computed properties + `watch()` with deep comparison handle this. Canvas components (RadarCanvas, SparklineCanvas, PieChart) still do their own key-based skip-redraw checks to avoid 60fps canvas repaints on every SSE push.
 
-### 4.5 SQLite must be read-only on Hermes DBs
+### 4.5 Canvas lifecycle
+Canvas components use `onMounted` + `watch(snapshot.data)` to draw. RadarCanvas uses `requestAnimationFrame` for the animated sweep — the loop is self-sustaining after initial boot and reads fresh data from the store on every frame. Always cancelAnimationFrame in `onUnmounted`.
+
+### 4.6 SSR is not used
+Vite builds this as a pure client-side SPA (`createWebHistory`). There is no SSR, no hydration mismatch issues. All data arrives via SSE after mount.
+
+### 4.7 SQLite must be read-only on Hermes DBs
 `kanban.db` and all `state.db` files open with `file:path?mode=ro` + `PRAGMA query_only=1`. Never write to these — the running Hermes process owns them. The only writable DB is `dashboard.db` (owned exclusively by this server).
 
-### 4.6 `glm-5.1` model returns `None` timestamps
+### 4.8 `glm-5.1` model returns `None` timestamps
 Some sessions in `state.db` have `model: "glm-5.1"` with `started_at: null`. The sessions renderer must handle null timestamps gracefully (show `—`).
+
+### 4.9 Dokku container name pattern
+Dokku containers follow `APPNAME.PROCESS.N` naming (e.g., `vladislavstoyanov.web.1`, `mh-fashion.scheduler.1`). The DokkuGrid component groups containers by app name prefix. The log viewer assumes `.web.1` — if an app uses a different process type, logs won't stream.
 
 ## 5. Design tokens (vladoms)
 
@@ -87,14 +122,14 @@ Some sessions in `state.db` have `model: "glm-5.1"` with `started_at: null`. The
 --font-display: "Saira Condensed";  --font-body: "IBM Plex Sans";  --font-mono: "JetBrains Mono";
 ```
 
-Background layers: `.bg-grid` (64px), `.bg-vignette` (red/cyan radial), `.bg-scanlines` (CRT, toggleable). All GPU-promoted with `transform: translateZ(0)` + `contain: paint`.
+Background layers: `.bg-grid` (64px), `.bg-vignette` (red/cyan radial), `.bg-scanlines` (CRT). All GPU-promoted with `transform: translateZ(0)` + `contain: paint`.
 
-## 6. Conventions
+## 6. Vue conventions
 
-- **Comments explain.** Server functions have docstrings. JS blocks have section banners.
+- **Composition API only.** All components use `<script setup>`. No Options API.
+- **Scoped styles.** Every component has `<style scoped>`. Global primitives live in `tokens.css`.
+- **Composables for shared logic.** `useSSE` is the pattern. New shared behavior goes in `src/composables/`.
+- **Stores derive from snapshot.** All domain stores (profiles, sessions, etc.) use `useSnapshotStore().data` via `computed()`. They do not fetch data independently.
+- **Lazy-loaded routes.** All page views except Overview use dynamic `() => import()`. Vite code-splits them into separate chunks.
 - **Tone**: dry tactical HUD. Not marketing copy. Not "warm and friendly."
-- **CSS is inline** in `index.html` `<style>` block. No external stylesheets.
-- **Google Fonts** loaded via CDN `<link>` in `<head>`.
-- **Version badge** in TopBar. Increment manually on meaningful changes.
-- **Backup before changes.** `./backups/index_v{ver}_{ISO}.html`.
-- **Server runs on `0.0.0.0:51763`.** Firewall restricts to Tailscale CGNAT only. Never expose to public internet.
+- **No emoji.** Use geometric glyphs: `◆ ▶ › → ─`
