@@ -2040,7 +2040,19 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
         try:
-            cmd = f"docker logs --follow --tail {tail} {app_name}.web.1 2>&1"
+            # Gather logs from ALL containers in the app's stack, prefixed with [container_name]
+            # Example: vladislavstoyanov → vladislavstoyanov.web.1, vladislavstoyanov.scheduler.1, etc.
+            cmd = (
+                f"containers=$(docker ps --filter 'name=^{app_name}\\.' --format '{{{{.Names}}}}');"
+                f"if [ -z \"$containers\" ]; then"
+                f"  docker logs --follow --tail {tail} {app_name}.web.1 2>&1;"
+                f"else"
+                f"  for ctr in $containers; do"
+                f"    docker logs --follow --tail {tail} \"$ctr\" 2>&1 | sed \"s/^/[\\$ctr] /\" &"
+                f"  done;"
+                f"  wait;"
+                f"fi"
+            )
             p = subprocess.Popen(
                 ["ssh", "-o", "ConnectTimeout=5", "-o", "BatchMode=yes", host, cmd],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True

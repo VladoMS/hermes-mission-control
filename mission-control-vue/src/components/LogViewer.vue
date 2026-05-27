@@ -7,7 +7,7 @@
           <div class="log-title-row">
             <div class="eyebrow">LOGS</div>
             <span class="log-app mono">{{ appName }}</span>
-            <span class="log-container mono" v-if="containerName">{{ containerName }}</span>
+            <span class="log-container mono">all containers</span>
           </div>
           <div class="log-actions">
             <button class="chip" :class="{ amber: paused }" @click="togglePause">
@@ -20,7 +20,7 @@
 
         <!-- Log output -->
         <div ref="logContainer" class="log-output" @click="handleLineClick">
-          <div v-if="lines.length === 0 && connecting" class="log-wait mono">Connecting to {{ containerName || (appName + '.web.1') }}...</div>
+          <div v-if="lines.length === 0 && connecting" class="log-wait mono">Connecting to all {{ appName }} containers...</div>
           <div
             v-for="(entry, i) in lines"
             :key="i"
@@ -40,14 +40,13 @@
 </template>
 
 <script setup>
-import { ref, watch, onUnmounted, nextTick, computed } from 'vue'
+import { ref, watch, onUnmounted, nextTick } from 'vue'
 import { useToast } from '../composables/useToast.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
   appName: { type: String, default: '' },
   serverName: { type: String, default: 'prod' },
-  containerName: { type: String, default: '' },
 })
 const emit = defineEmits(['close'])
 
@@ -59,8 +58,6 @@ const { toast } = useToast()
 
 let source = null
 let pending = []
-
-const activeContainer = computed(() => props.containerName || props.appName + '.web.1')
 
 function lineClass(line) {
   const lower = line.toLowerCase()
