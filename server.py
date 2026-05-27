@@ -1871,7 +1871,8 @@ def build_snapshot():
 # HTTP Handlers
 # =============================================================================
 
-_INDEX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dist")
+_INDEX_PATH = os.path.join(_DIST_DIR, "index.html")
 
 
 class MissionControlHandler(http.server.BaseHTTPRequestHandler):
@@ -1884,9 +1885,8 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
         path = parsed.path
         qs = urllib.parse.parse_qs(parsed.query)
 
-        if path == "/":
-            self._serve_index()
-        elif path == "/api/snapshot":
+        # API routes
+        if path == "/api/snapshot":
             self._serve_snapshot()
         elif path == "/api/content":
             self._serve_content_list()
@@ -1894,8 +1894,12 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
             self._serve_content_get(qs)
         elif path == "/events":
             self._serve_sse()
+        # Static assets (served from dist/)
+        elif path.startswith("/assets/") or path == "/favicon.ico":
+            self._serve_static(path)
+        # SPA fallback — all other paths serve index.html
         else:
-            self.send_error(HTTPStatus.NOT_FOUND)
+            self._serve_index()
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -1921,16 +1925,35 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
         try:
             with open(_INDEX_PATH, "rb") as f:
                 body = f.read()
-            # Inject cached snapshot for instant load (before SSE connects)
-            cached = _get_latest_snapshot()
-            if cached:
-                injection = ('<script>window.__mc={snapshot:' + cached + '};</script>').encode("utf-8")
-                body = body.replace(b'</head>', injection + b'</head>', 1)
         except Exception:
-            body = b"<h1>MISSION CONTROL</h1><p>index.html not found</p>"
+            body = b"<h1>MISSION CONTROL</h1><p>dist/index.html not found. Run: npm run build</p>"
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", len(body))
+        self._cors_headers()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _serve_static(self, path):
+        """Serve static files from dist/ directory."""
+        import mimetypes
+        if not mimetypes.inited:
+            mimetypes.init()
+        filepath = os.path.join(_DIST_DIR, path.lstrip("/"))
+        if not os.path.isfile(filepath):
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        try:
+            with open(filepath, "rb") as f:
+                body = f.read()
+        except Exception:
+            self.send_error(HTTPStatus.NOT_FOUND)
+            return
+        mime, _ = mimetypes.guess_type(filepath)
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", mime or "application/octet-stream")
+        self.send_header("Content-Length", len(body))
+        self.send_header("Cache-Control", "public, max-age=3600")
         self._cors_headers()
         self.end_headers()
         self.wfile.write(body)
