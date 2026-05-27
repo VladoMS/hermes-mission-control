@@ -4,34 +4,50 @@
       <div class="log-viewer panel">
         <!-- Header -->
         <div class="log-header">
-          <div class="eyebrow">LOGS: {{ appName }}</div>
+          <div class="log-title-row">
+            <div class="eyebrow">LOGS</div>
+            <span class="log-app mono">{{ appName }}</span>
+            <span class="log-container mono" v-if="containerName">{{ containerName }}</span>
+          </div>
           <div class="log-actions">
             <button class="chip" :class="{ amber: paused }" @click="togglePause">
               {{ paused ? 'PAUSED' : 'LIVE' }}
             </button>
+            <button class="chip" @click="clearLogs">CLEAR</button>
             <button class="modal-close" @click="close">✕</button>
           </div>
         </div>
 
         <!-- Log output -->
-        <div ref="logContainer" class="log-output">
-          <div v-if="lines.length === 0 && connecting" class="log-wait mono">Connecting...</div>
-          <div v-for="(line, i) in lines" :key="i" class="log-line" :class="lineClass(line)">
-            <span class="ln-mono">{{ line }}</span>
+        <div ref="logContainer" class="log-output" @click="handleLineClick">
+          <div v-if="lines.length === 0 && connecting" class="log-wait mono">Connecting to {{ containerName || (appName + '.web.1') }}...</div>
+          <div
+            v-for="(entry, i) in lines"
+            :key="i"
+            class="log-line"
+            :class="entry.css"
+            :data-line="i"
+          >
+            <span class="ln-mono">{{ entry.text }}</span>
           </div>
         </div>
+
+        <!-- Line count -->
+        <div class="log-footer mono">{{ lines.length }} lines{{ paused ? ' (paused)' : '' }}</div>
       </div>
     </div>
   </Teleport>
 </template>
 
 <script setup>
-import { ref, watch, onUnmounted, nextTick } from 'vue'
+import { ref, watch, onUnmounted, nextTick, computed } from 'vue'
+import { useToast } from '../composables/useToast.js'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
   appName: { type: String, default: '' },
   serverName: { type: String, default: 'prod' },
+  containerName: { type: String, default: '' },
 })
 const emit = defineEmits(['close'])
 
@@ -39,9 +55,12 @@ const lines = ref([])
 const paused = ref(false)
 const connecting = ref(false)
 const logContainer = ref(null)
+const { toast } = useToast()
 
 let source = null
-let pendingLines = []
+let pending = []
+
+const activeContainer = computed(() => props.containerName || props.appName + '.web.1')
 
 function lineClass(line) {
   const lower = line.toLowerCase()
@@ -53,14 +72,17 @@ function lineClass(line) {
 
 function togglePause() {
   paused.value = !paused.value
-  if (!paused.value) {
-    // Flush pending lines
-    if (pendingLines.length) {
-      lines.value.push(...pendingLines)
-      pendingLines = []
-      scrollToBottom()
-    }
+  if (!paused.value && pending.length) {
+    lines.value.push(...pending)
+    pending = []
+    if (lines.value.length > 2000) lines.value = lines.value.slice(-2000)
+    scrollToBottom()
   }
+}
+
+function clearLogs() {
+  lines.value = []
+  pending = []
 }
 
 function scrollToBottom() {
@@ -70,44 +92,64 @@ function scrollToBottom() {
   })
 }
 
+async function handleLineClick(e) {
+  const lineEl = e.target.closest('.log-line')
+  if (!lineEl) return
+  const text = lineEl.textContent || ''
+  try {
+    await navigator.clipboard.writeText(text)
+    toast('Copied to clipboard')
+  } catch {
+    // Fallback for non-HTTPS or older browsers
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    toast('Copied to clipboard')
+  }
+}
+
 function connect() {
   if (!props.visible || !props.appName) return
   closeSource()
   connecting.value = true
   lines.value = []
-  pendingLines = []
+  pending = []
 
-  const url = `/api/dokku/logs?server=${encodeURIComponent(props.serverName)}&app=${encodeURIComponent(props.appName)}&tail=200`
+  const url = `/api/dokku/logs?server=${encodeURIComponent(props.serverName)}&app=${encodeURIComponent(props.appName)}&tail=300`
   source = new EventSource(url)
 
   source.onopen = () => { connecting.value = false }
-
   source.onmessage = (event) => {
     const data = event.data
     if (data == null || data === '') return
+    const entry = {
+      text: data,
+      css: lineClass(data),
+    }
     if (paused.value) {
-      pendingLines.push(data)
-      if (pendingLines.length > 500) pendingLines.shift()
+      pending.push(entry)
+      if (pending.length > 1000) pending.shift()
     } else {
-      lines.value.push(data)
-      if (lines.value.length > 1000) lines.value.shift()
+      lines.value.push(entry)
+      if (lines.value.length > 2000) lines.value = lines.value.slice(-2000)
       scrollToBottom()
     }
   }
-
   source.onerror = () => {
     closeSource()
     if (props.visible) {
-      lines.value.push('--- CONNECTION LOST ---')
+      lines.value.push({ text: '--- CONNECTION LOST ---', css: 'error' })
     }
   }
 }
 
 function closeSource() {
-  if (source) {
-    source.close()
-    source = null
-  }
+  if (source) { source.close(); source = null }
   connecting.value = false
 }
 
@@ -128,17 +170,18 @@ onUnmounted(() => closeSource())
 .log-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: rgba(0, 0, 0, 0.75);
   z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 32px;
 }
 .log-viewer {
   width: 100%;
-  max-width: 900px;
-  max-height: 80vh;
+  max-width: 1100px;
+  height: 85vh;
+  max-height: 85vh;
   display: flex;
   flex-direction: column;
   background: var(--bg-void);
@@ -148,25 +191,41 @@ onUnmounted(() => closeSource())
 .log-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
+  align-items: flex-start;
+  padding: 14px 18px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
+}
+.log-title-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.log-app {
+  font-size: 13px;
+  color: var(--text-hi);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.log-container {
+  font-size: 10px;
+  color: var(--text-faint);
+  letter-spacing: 0.08em;
 }
 .log-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
-.log-actions .chip { cursor: pointer; }
+.log-actions .chip { cursor: pointer; font-size: 9px; }
 .modal-close {
   background: transparent;
   border: 1px solid var(--line);
   color: var(--text-dim);
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -176,25 +235,48 @@ onUnmounted(() => closeSource())
 .log-output {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  padding: 14px 18px;
   font-family: var(--font-mono);
-  font-size: 10px;
-  line-height: 1.5;
+  font-size: 11px;
+  line-height: 1.6;
   background: var(--bg-deep);
-  max-height: 60vh;
 }
 .log-wait {
   color: var(--text-faint);
-  padding: 20px;
+  padding: 40px;
   text-align: center;
+  font-size: 11px;
 }
 .log-line {
   white-space: pre-wrap;
   word-break: break-all;
-  padding: 1px 0;
+  padding: 2px 6px;
   color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.1s;
+}
+.log-line:hover {
+  background: rgba(255, 255, 255, 0.03);
 }
 .log-line.error { color: var(--red); }
 .log-line.warn { color: var(--amber-soft); }
 .log-line.info { color: var(--cyan-soft); }
+
+.log-footer {
+  padding: 8px 18px;
+  font-size: 9px;
+  color: var(--text-faint);
+  border-top: 1px solid var(--line-dim);
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .log-overlay { padding: 0; }
+  .log-viewer {
+    max-width: 100%;
+    height: 100vh;
+    max-height: 100vh;
+  }
+}
 </style>

@@ -9,6 +9,7 @@
   <main class="frame">
     <router-view />
   </main>
+  <ToastNotification />
 </template>
 
 <script setup>
@@ -18,6 +19,7 @@ import { useUiStore } from './stores/ui.js'
 import TopBar from './components/TopBar.vue'
 import BackgroundLayers from './components/BackgroundLayers.vue'
 import MobileNavDrawer from './components/MobileNavDrawer.vue'
+import ToastNotification from './components/ToastNotification.vue'
 
 const uiStore = useUiStore()
 
