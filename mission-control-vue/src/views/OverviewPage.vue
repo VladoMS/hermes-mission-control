@@ -142,11 +142,17 @@ const ops = computed(() => {
 }
 .ops-val.bad { color: var(--red); }
 
-@media (max-width: 900px) {
+@media (max-width: 720px) {
   .overview-grid { grid-template-columns: 1fr; }
   .ops-grid { grid-template-columns: repeat(3, 1fr); }
+  .ops-val { font-size: 15px; }
 }
-@media (max-width: 720px) {
+@media (max-width: 480px) {
   .ops-grid { grid-template-columns: repeat(2, 1fr); }
+  .ops-label { font-size: 8px; }
+  .ops-val { font-size: 14px; }
+}
+@media (max-width: 360px) {
+  .ops-grid { grid-template-columns: 1fr; }
 }
 </style>

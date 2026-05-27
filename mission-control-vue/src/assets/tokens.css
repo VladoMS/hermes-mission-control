@@ -698,6 +698,13 @@ body {
     padding: 28px 14px;
   }
 
+  .section-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
   .hamburger-btn {
     display: flex;
   }

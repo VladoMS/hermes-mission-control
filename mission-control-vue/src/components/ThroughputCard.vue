@@ -3,14 +3,14 @@
     <div class="eyebrow">THROUGHPUT</div>
     <div class="tp-total">{{ totalSessions }}</div>
     <div class="tp-sub">total sessions</div>
-    <SparklineCanvas />
+    <ThroughputSparkline />
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { useSnapshotStore } from '../stores/snapshotStore.js'
-import SparklineCanvas from './SparklineCanvas.vue'
+import ThroughputSparkline from './ThroughputSparkline.vue'
 
 const snap = useSnapshotStore()
 
