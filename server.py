@@ -1466,6 +1466,19 @@ def read_kanban_boards(errors_out):
 # Unified Sessions — cross-profile session list + token ledger
 # =============================================================================
 
+def _count_sessions_in_db(path, profile_name, errors_out):
+    """Count ALL sessions in a state.db without LIMIT — for real total display."""
+    try:
+        db = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        db.execute("PRAGMA query_only=1")
+        count = db.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+        db.close()
+        return count
+    except Exception as e:
+        errors_out.append(f"{profile_name} state.db count: {e}")
+        return 0
+
+
 def _read_sessions_from_db(path, profile_name, errors_out):
     """Read sessions from a single state.db, returning list with profile attribution."""
     try:
@@ -1495,13 +1508,16 @@ def _read_sessions_from_db(path, profile_name, errors_out):
 def build_unified_sessions(profiles, errors_out):
     """Build a unified session list from all state.dbs with profile attribution.
     Also cross-references sessions.json for display_name (title fallback).
-    Returns list sorted by started_at desc, limited to 50 sessions."""
+    Returns (capped_list, total_count) — list limited to 50 for display, but
+    total_count is the real unfiltered session count across all state.dbs."""
     all_sessions = []
+    total_count = 0
 
     # Root state.db
     root_path = os.path.join(HERMES_HOME, "state.db")
     if os.path.exists(root_path):
         all_sessions.extend(_read_sessions_from_db(root_path, "default", errors_out))
+        total_count += _count_sessions_in_db(root_path, "default", errors_out)
 
     # Per-profile state.dbs
     for profile in profiles:
@@ -1512,6 +1528,7 @@ def build_unified_sessions(profiles, errors_out):
         state_path = os.path.join(prof_dir, "state.db")
         if os.path.exists(state_path):
             all_sessions.extend(_read_sessions_from_db(state_path, name, errors_out))
+            total_count += _count_sessions_in_db(state_path, name, errors_out)
 
     # Cross-reference with sessions.json for display_name (title fallback)
     try:
@@ -1529,13 +1546,14 @@ def build_unified_sessions(profiles, errors_out):
     except Exception:
         pass
 
-    # Sort by started_at desc, limit to 50
+    # Sort by started_at desc, limit to 50 for display
     all_sessions.sort(key=lambda s: s.get("started_at", 0) or 0, reverse=True)
-    return all_sessions[:50]
+    return all_sessions[:50], total_count
 
 
-def build_sessions_ledger(all_sessions):
+def build_sessions_ledger(all_sessions, total_session_count=None):
     """Compute aggregate token/cost stats from a unified session list.
+    total_session_count is the real unfiltered count (all_sessions may be capped).
     Returns dict with totals, per-model breakdown, per-profile breakdown, cache hit rate."""
     total_input = 0
     total_output = 0
@@ -1612,7 +1630,7 @@ def build_sessions_ledger(all_sessions):
         "cache_hit_rate_pct": cache_hit_rate,
         "per_model": sorted_models,
         "per_profile": sorted_profiles,
-        "session_count": len(all_sessions or []),
+        "session_count": total_session_count if total_session_count is not None else len(all_sessions or []),
     }
 
 
@@ -2064,9 +2082,9 @@ def build_snapshot():
     snapshot["profiles"] = build_profiles(errors)
 
     # --- Sessions — unified cross-profile list from all state.dbs ---
-    unified = build_unified_sessions(snapshot["profiles"], errors)
+    unified, total_session_count = build_unified_sessions(snapshot["profiles"], errors)
     snapshot["sessions"] = unified
-    snapshot["sessions_ledger"] = build_sessions_ledger(unified)
+    snapshot["sessions_ledger"] = build_sessions_ledger(unified, total_session_count)
 
     # --- Processes ---
     procs = read_json(os.path.join(HERMES_HOME, "processes.json"))

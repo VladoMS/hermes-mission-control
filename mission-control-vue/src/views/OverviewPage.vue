@@ -96,7 +96,7 @@ const ops = computed(() => {
 
   return {
     queueDepth: queue,
-    sessionCount: d.sessions?.length || 0,
+    sessionCount: d.sessions_ledger?.session_count || d.sessions?.length || 0,
     errors: (d.errors || []).length,
     tasksToday: today,
     uptime,
