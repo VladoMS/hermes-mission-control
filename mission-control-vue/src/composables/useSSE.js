@@ -18,18 +18,33 @@ const CHANNELS = {
   'servers':          { key: 'servers',          interval: 60000 },
 }
 
+// ── Module-level singleton state ────────────────────────────────────────
+let source = null
+let pollTimers = {}
+let currentChannels = null  // array or null (all)
+let intentionalClose = false
+
 /**
- * Simplified useSSE — starts per-channel polling immediately.
- * SSE connection is attempted in parallel; if it connects, polling stops.
+ * Per-channel SSE with page-aware subscription.
+ *
+ * Call connect(channels) with an array of channel names (or null for all).
+ * When channels change, the SSE connection reconnects with the new filter.
+ * Polling fallback also respects the channel list.
  */
 export function useSSE() {
   const store = useSnapshotStore()
-  let source = null
-  let pollTimers = {}
 
   function _stopAllPolling() {
     for (const id of Object.values(pollTimers)) clearInterval(id)
     pollTimers = {}
+  }
+
+  function _disconnectSSE() {
+    intentionalClose = true
+    if (source) {
+      source.close()
+      source = null
+    }
   }
 
   function _applyChannel(channelName, rawData) {
@@ -48,10 +63,12 @@ export function useSSE() {
   }
 
   function _startPolling() {
-    for (const [name, cfg] of Object.entries(CHANNELS)) {
+    const names = currentChannels || Object.keys(CHANNELS)
+    for (const name of names) {
       if (pollTimers[name]) continue
+      const cfg = CHANNELS[name]
+      if (!cfg) continue
       const url = window.location.origin + '/api/' + name
-      // Immediate first fetch, then interval
       const fetchOnce = async () => {
         try {
           const r = await fetch(url)
@@ -67,21 +84,44 @@ export function useSSE() {
     }
   }
 
-  function connect() {
+  function connect(channels) {
+    // Update the module-level channel list
+    currentChannels = channels || null
+
+    // Disconnect existing SSE (flag prevents onerror fallout)
+    _disconnectSSE()
+    intentionalClose = false
+
+    // Stop polling
+    _stopAllPolling()
+
+    // If explicit empty array, page needs no live data — go dark
+    if (Array.isArray(currentChannels) && currentChannels.length === 0) {
+      uplink.value = 'disconnected'
+      return
+    }
+
     uplink.value = 'connecting'
 
     // Start polling immediately — data first, SSE optional
     _startPolling()
 
+    // Build SSE URL with channel filter
+    let sseUrl = '/events'
+    if (currentChannels && currentChannels.length > 0) {
+      sseUrl += '?channels=' + encodeURIComponent(currentChannels.join(','))
+    }
+
     // Try SSE in parallel
-    source = new EventSource('/events')
+    source = new EventSource(sseUrl)
     source.onopen = () => {
       sseActive.value = true
       uplink.value = 'synced'
       _stopAllPolling()
     }
 
-    for (const eventType of Object.keys(CHANNELS)) {
+    const subscribed = currentChannels || Object.keys(CHANNELS)
+    for (const eventType of subscribed) {
       source.addEventListener(eventType, (event) => {
         try {
           const data = JSON.parse(event.data)
@@ -95,10 +135,17 @@ export function useSSE() {
     source.addEventListener('heartbeat', () => {})
 
     source.onerror = () => {
+      // Ignore errors from intentional close (page navigation / reconnect)
+      if (intentionalClose) {
+        intentionalClose = false
+        return
+      }
+
       sseActive.value = false
-      if (uplink.value === 'synced') uplink.value = 'degraded'
-      source.close()
-      source = null
+      // Transition to degraded from any state: synced (dropped) or connecting (failed to establish)
+      uplink.value = 'degraded'
+      _disconnectSSE()
+      intentionalClose = false
       _startPolling()  // restart polling if it was stopped
     }
   }

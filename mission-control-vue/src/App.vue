@@ -13,7 +13,8 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useSSE } from './composables/useSSE.js'
 import { useUiStore } from './stores/ui.js'
 import TopBar from './components/TopBar.vue'
@@ -22,6 +23,7 @@ import MobileNavDrawer from './components/MobileNavDrawer.vue'
 import ToastNotification from './components/ToastNotification.vue'
 
 const uiStore = useUiStore()
+const route = useRoute()
 
 const navTabs = [
   { id: 'overview', label: 'Overview' },
@@ -32,10 +34,30 @@ const navTabs = [
   { id: 'content', label: 'Content' },
 ]
 
+// ── Page → SSE channel mapping ───────────────────────────────────────
+const PAGE_CHANNELS = {
+  overview:  ['gateway', 'processes', 'hermes-health', 'sessions-ledger',
+              'profiles', 'sessions', 'kanban', 'prod-health'],
+  profiles:  ['profiles'],
+  kanban:    ['kanban'],
+  servers:   ['servers', 'dokku', 'prod-health', 'server-crons'],
+  sessions:  ['sessions', 'sessions-ledger'],
+  content:   [],  // Content page uses its own REST API — no SSE needed
+}
+
+const routeChannels = computed(() => {
+  const name = route.name || 'overview'
+  return PAGE_CHANNELS[name] || null
+})
+
 const { connect } = useSSE()
 
 onMounted(() => {
-  connect()
+  connect(routeChannels.value)
+})
+
+watch(routeChannels, (channels) => {
+  connect(channels)
 })
 
 onUnmounted(() => {

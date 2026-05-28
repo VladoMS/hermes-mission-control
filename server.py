@@ -2191,7 +2191,7 @@ def publish_channel(event_type, collect_fn, interval, queue, retention_db_path=N
         time.sleep(interval)
 
 
-def _sse_multiplex_drain(wfile, flush_fn, queue, timeout=0.5):
+def _sse_multiplex_drain(wfile, flush_fn, queue, timeout=0.5, channels=None):
     """
     Drain the shared SSE queue, writing named events to the client.
     Called from _serve_sse() in a loop.
@@ -2199,10 +2199,14 @@ def _sse_multiplex_drain(wfile, flush_fn, queue, timeout=0.5):
     Blocks up to `timeout` seconds waiting for the next event.
     Returns True if at least one event was written, False if timeout elapsed.
 
+    If `channels` is a set, events not in that set are silently dropped.
+
     Handles BrokenPipeError/ConnectionResetError by re-raising to caller.
     """
     try:
         event_type, payload = queue.get(timeout=timeout)
+        if channels is not None and event_type not in channels:
+            return False  # Silently drop events for unsubscribed channels
         msg = f"event: {event_type}\ndata: {payload}\n\n"
         wfile.write(msg.encode("utf-8"))
         flush_fn()
@@ -2428,7 +2432,7 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/glance-data":
             self._serve_glance_data()
         elif path == "/events":
-            self._serve_sse()
+            self._serve_sse(qs)
         elif path == "/api/dokku/logs":
             self._serve_dokku_logs(qs)
         # Static assets (served from dist/)
@@ -2518,11 +2522,21 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _serve_sse(self):
+    def _serve_sse(self, qs=None):
         """SSE stream — multiplexed via shared queue.
         Each channel publishes independently; this handler drains the queue.
-        Also sends a heartbeat comment every 0.5s if the queue is empty.
+
+        Query params:
+            channels — comma-separated event types to subscribe to.
+                       If omitted, all channels are delivered.
         """
+        # ── Parse channel filter ──
+        raw = (qs or {}).get("channels", [None])[0]
+        if raw:
+            channel_set = set(c.strip() for c in raw.split(",") if c.strip())
+        else:
+            channel_set = None  # No filter → all channels
+
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
@@ -2533,7 +2547,7 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
         # ── Initial burst: signal Tier 1 publishers to push immediately ──
         with _fp_lock:
             for event_type, interval, tier in _CHANNEL_REGISTRY:
-                if tier == 1:
+                if tier == 1 and (channel_set is None or event_type in channel_set):
                     _CHANNEL_FINGERPRINTS.pop(event_type, None)
                     burst = _CHANNEL_BURST.get(event_type)
                     if burst:
@@ -2545,7 +2559,8 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
                     self.wfile,
                     self.wfile.flush,
                     _SSE_QUEUE,
-                    timeout=0.5
+                    timeout=0.5,
+                    channels=channel_set
                 )
         except (BrokenPipeError, ConnectionResetError, OSError):
             pass
