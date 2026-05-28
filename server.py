@@ -2363,6 +2363,27 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
         # API routes
         if path == "/api/snapshot":
             self._serve_snapshot()
+        # Per-channel REST endpoints (polling fallback + direct debug access)
+        elif path == "/api/gateway":
+            self._serve_channel("gateway", collect_gateway)
+        elif path == "/api/processes":
+            self._serve_channel("processes", collect_processes)
+        elif path == "/api/hermes-health":
+            self._serve_channel("hermes-health", collect_hermes_health)
+        elif path == "/api/sessions-ledger":
+            self._serve_channel("sessions-ledger", collect_sessions_ledger)
+        elif path == "/api/profiles":
+            self._serve_channel("profiles", collect_profiles)
+        elif path == "/api/sessions":
+            self._serve_channel("sessions", collect_sessions)
+        elif path == "/api/kanban":
+            self._serve_channel("kanban", collect_kanban)
+        elif path == "/api/prod-health":
+            self._serve_channel("prod-health", collect_prod_health)
+        elif path == "/api/dokku":
+            self._serve_channel("dokku", collect_dokku)
+        elif path == "/api/server-crons":
+            self._serve_channel("server-crons", collect_server_crons)
         elif path == "/api/content":
             self._serve_content_list()
         elif path == "/api/content/get":
@@ -2460,6 +2481,10 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _serve_sse(self):
+        """SSE stream — multiplexed via shared queue.
+        Each channel publishes independently; this handler drains the queue.
+        Also sends a heartbeat comment every 0.5s if the queue is empty.
+        """
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
@@ -2467,14 +2492,23 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
         self._cors_headers()
         self.end_headers()
 
+        # ── Initial burst: signal Tier 1 publishers to push immediately ──
+        with _fp_lock:
+            for event_type, interval, tier in _CHANNEL_REGISTRY:
+                if tier == 1:
+                    _CHANNEL_FINGERPRINTS.pop(event_type, None)
+                    burst = _CHANNEL_BURST.get(event_type)
+                    if burst:
+                        burst.set()
+
         try:
             while True:
-                snapshot = build_snapshot()
-                data = json.dumps(snapshot, default=str)
-                msg = f"event: snapshot\ndata: {data}\n\n"
-                self.wfile.write(msg.encode("utf-8"))
-                self.wfile.flush()
-                time.sleep(SSE_INTERVAL)
+                _sse_multiplex_drain(
+                    self.wfile,
+                    self.wfile.flush,
+                    _SSE_QUEUE,
+                    timeout=0.5
+                )
         except (BrokenPipeError, ConnectionResetError, OSError):
             pass
 
@@ -2540,6 +2574,29 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
             pass
         except Exception:
             pass
+
+    def _serve_channel(self, event_type, collect_fn):
+        """Serve a single channel as JSON. Calls collect_fn() and returns the result."""
+        try:
+            data = collect_fn()
+            body = json.dumps(data, default=str).encode("utf-8")
+        except Exception as e:
+            body = json.dumps({"error": str(e)}).encode("utf-8")
+            self.send_response(HTTPStatus.INTERNAL_SERVER_ERROR)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", len(body))
+            self._cors_headers()
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", len(body))
+        self.send_header("Cache-Control", "no-cache")
+        self._cors_headers()
+        self.end_headers()
+        self.wfile.write(body)
 
     def _serve_content_list(self):
         """GET /api/content — list .md files under ~/.hermes/content/."""
@@ -2630,14 +2687,36 @@ class ThreadingHTTPServer(http.server.ThreadingHTTPServer):
 def main():
     _init_dashboard_db()
     _cleanup_old_snapshots()
+
+    # Start channel publisher threads
+    _publisher_threads = []
+    for event_type, interval, tier in _CHANNEL_REGISTRY:
+        collector = _CHANNEL_COLLECTORS.get(event_type)
+        if collector is None:
+            print(f"  WARNING: no collector for channel '{event_type}' — skipping")
+            continue
+        t = threading.Thread(
+            target=publish_channel,
+            args=(event_type, collector, interval, _SSE_QUEUE, DASHBOARD_DB),
+            daemon=True,
+            name=f"ch-{event_type}"
+        )
+        t.start()
+        _publisher_threads.append(t)
+        print(f"  ▶ publisher: {event_type} every {interval}s (tier {tier})")
+
+    print(f"  ▶ {len(_publisher_threads)} channel publishers started\n")
+
     server = ThreadingHTTPServer((HOST, PORT), MissionControlHandler)
     print(f"▶ MISSION CONTROL listening on {HOST}:{PORT}")
     print(f"  GET /                → index.html")
-    print(f"  GET /api/snapshot    → data snapshot (JSON)")
+    print(f"  GET /api/snapshot    → legacy full snapshot (polling fallback)")
+    print(f"  GET /api/gateway     → per-channel REST endpoints")
+    print(f"  GET /api/sessions    → ... (all 10 channels)")
     print(f"  GET /api/content     → document list")
     print(f"  GET /api/content/get → read document")
     print(f"  POST /api/content/save → save document")
-    print(f"  GET /events          → SSE stream ({SSE_INTERVAL}s interval)")
+    print(f"  GET /events          → SSE multiplexed stream")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
