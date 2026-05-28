@@ -68,35 +68,36 @@ import SystemStatus from '../components/SystemStatus.vue'
 import VpsHealth from '../components/VpsHealth.vue'
 import ActivityFeed from '../components/ActivityFeed.vue'
 
-const store = useSnapshotStore()
-const snap = store
+const snap = useSnapshotStore()
 
 const ops = computed(() => {
   const d = snap.data
-  if (!d) return {
-    queueDepth: '--', sessionCount: '--', errors: '--', tasksToday: '--', uptime: '--',
-    loading: { queueDepth: true, sessionCount: true, errors: true, tasksToday: true, uptime: true }
+  if (!d) {
+    return {
+      queueDepth: '--', sessionCount: '--', errors: '--', tasksToday: '--', uptime: '--',
+      loading: { queueDepth: true, sessionCount: true, tasksToday: true, uptime: true },
+    }
   }
 
-  // Loading detection: is each channel loaded yet?
-  const kanbanLoaded = store.isChannelLoaded('kanban')
-  const sessionsLoaded = store.isChannelLoaded('sessions_ledger')
-  const vpsLoaded = store.isChannelLoaded('vps')
+  // Detect which channels have arrived by checking for their data keys
+  const hasKanban = d.kanban && d.kanban.boards && Object.keys(d.kanban.boards).length > 0
+  const hasSessionsLedger = !!(d.sessions_ledger && d.sessions_ledger.session_count != null)
+  const hasVps = !!(d.vps && d.vps.hermes && d.vps.hermes.uptime != null)
 
   // — Kanban-derived values —
-  const boards = d.kanban?.boards || {}
   let queue = 0, today = 0
-  if (kanbanLoaded) {
-    const todayStr = new Date().toISOString().slice(0, 10)
-    for (const b of Object.values(boards)) {
-      const cols = b.columns || {}
-      queue += (cols.backlog || []).length + (cols.in_progress || []).length
-      for (const col of Object.values(cols)) {
-        for (const t of col) {
-          if (t.created_at) {
-            const ds = new Date(t.created_at * 1000).toISOString().slice(0, 10)
-            if (ds === todayStr) today++
-          }
+  const boards = (d.kanban && d.kanban.boards) ? d.kanban.boards : {}
+  const todayStr = new Date().toISOString().slice(0, 10)
+  for (const b of Object.values(boards)) {
+    const cols = (b && b.columns) ? b.columns : {}
+    queue += (Array.isArray(cols.backlog) ? cols.backlog.length : 0) +
+             (Array.isArray(cols.in_progress) ? cols.in_progress.length : 0)
+    for (const col of Object.values(cols)) {
+      if (!Array.isArray(col)) continue
+      for (const t of col) {
+        if (t && t.created_at) {
+          const ds = new Date(t.created_at * 1000).toISOString().slice(0, 10)
+          if (ds === todayStr) today++
         }
       }
     }
@@ -104,28 +105,27 @@ const ops = computed(() => {
 
   // — Uptime —
   let uptime = '--'
-  if (vpsLoaded) {
-    const u = d.vps?.hermes?.uptime
-    if (u != null) {
-      const days = Math.floor(u / 86400)
-      const hrs = Math.floor((u % 86400) / 3600)
-      uptime = days + 'd ' + hrs + 'h'
-    }
+  const u = d.vps && d.vps.hermes ? d.vps.hermes.uptime : null
+  if (u != null) {
+    const days = Math.floor(u / 86400)
+    const hrs = Math.floor((u % 86400) / 3600)
+    uptime = days + 'd ' + hrs + 'h'
   }
 
   return {
-    queueDepth: kanbanLoaded ? queue : '--',
-    sessionCount: sessionsLoaded ? (d.sessions_ledger?.session_count || d.sessions?.length || 0) : '--',
-    errors: (d.errors || []).length,
-    tasksToday: kanbanLoaded ? today : '--',
+    queueDepth: queue,
+    sessionCount: (d.sessions_ledger && d.sessions_ledger.session_count != null)
+      ? d.sessions_ledger.session_count
+      : (Array.isArray(d.sessions) ? d.sessions.length : 0),
+    errors: Array.isArray(d.errors) ? d.errors.length : 0,
+    tasksToday: today,
     uptime,
     loading: {
-      queueDepth: !kanbanLoaded,
-      sessionCount: !sessionsLoaded,
-      errors: false,  // errors array is always collected with the snapshot
-      tasksToday: !kanbanLoaded,
-      uptime: !vpsLoaded,
-    }
+      queueDepth: !hasKanban,
+      sessionCount: !hasSessionsLedger,
+      tasksToday: !hasKanban,
+      uptime: !hasVps,
+    },
   }
 })
 </script>
