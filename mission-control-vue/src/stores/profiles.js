@@ -28,11 +28,8 @@ const BADGES = {
 export const useProfilesStore = defineStore('profiles', () => {
   const snap = useSnapshotStore()
 
-  /** All profiles from snapshot (unwraps channel wrapper if present) */
-  const profiles = computed(() => {
-    const p = snap.data?.profiles
-    return Array.isArray(p) ? p : (p?.profiles || [])
-  })
+  /** All profiles from snapshot */
+  const profiles = computed(() => snap.data?.profiles || [])
 
   /** Profiles with at least one active session */
   const activeCount = computed(() =>

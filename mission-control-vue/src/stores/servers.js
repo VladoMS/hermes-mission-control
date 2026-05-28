@@ -15,11 +15,8 @@ import { useSnapshotStore } from './snapshotStore.js'
 export const useServersStore = defineStore('servers', () => {
   const snap = useSnapshotStore()
 
-  /** Server list from snapshot (unwraps channel wrapper if present) */
-  const servers = computed(() => {
-    const s = snap.data?.servers
-    return Array.isArray(s) ? s : (s?.servers || [])
-  })
+  /** Server list from snapshot */
+  const servers = computed(() => snap.data?.servers || [])
 
   /** Total server count */
   const serverCount = computed(() => servers.value.length)

@@ -2250,22 +2250,26 @@ def collect_sessions_ledger():
 
 
 def collect_profiles():
-    """Collect profile list with state_db_stats. Returns dict."""
+    """Collect profile list — returns array directly (matches old snapshot.profiles shape)."""
     errors = []
-    profiles = build_profiles(errors)
-    return {"profiles": profiles, "errors": errors}
+    return build_profiles(errors)
 
 
 def collect_sessions():
-    """Collect unified session list (top 50 across all profiles).
-    Returns the capped list — the uncapped count is in sessions_ledger."""
+    """Collect unified session list (top 50) — returns array directly."""
     profiles = build_profiles([])
     unified, _ = build_unified_sessions(profiles, [])
-    return {"sessions": unified}
+    return unified
+
+
+def collect_servers():
+    """Collect full server list — returns array directly (matches old snapshot.servers shape)."""
+    errors = []
+    return build_servers(errors)
 
 
 def collect_kanban():
-    """Collect kanban boards. Returns dict matching the old snapshot kanban shape."""
+    """Collect kanban boards — returns dict matching old snapshot.kanban shape."""
     errors = []
     result = read_kanban_boards(errors)
     result["errors"] = errors
