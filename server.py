@@ -2304,13 +2304,6 @@ def collect_server_crons():
     return {"crons": crons_by_server, "errors": errors}
 
 
-def collect_servers():
-    """Collect full server list with health, crons, dokku — same shape as build_servers()."""
-    errors = []
-    servers = build_servers(errors)
-    return {"servers": servers, "errors": errors}
-
-
 # Map event_type → collector function (used by publisher threads and REST endpoints)
 _CHANNEL_COLLECTORS = {
     "gateway":          collect_gateway,
