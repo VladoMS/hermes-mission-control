@@ -103,32 +103,40 @@ function cancelEdit() {
 </script>
 
 <style scoped>
-.content-preview { padding: 18px; min-height: 400px; }
+.content-preview { padding: 18px; min-height: 400px; overflow: hidden; min-width: 0; }
 .preview-empty { display: flex; align-items: center; justify-content: center; min-height: 300px; }
 .preview-loading { font-size: 10px; color: var(--text-faint); padding: 20px; }
-.preview-header { margin-bottom: 18px; }
+.preview-header { margin-bottom: 18px; overflow: hidden; }
 .preview-title {
   font-size: 14px;
   color: var(--text-hi);
   margin-top: 6px;
   font-weight: 600;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .preview-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
   margin-top: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .preview-meta { font-size: 10px; color: var(--text-faint); }
 .preview-btns {
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
 }
 .preview-content {
   font-family: var(--font-body);
   font-size: 13px;
   line-height: 1.7;
   color: var(--text);
+  overflow-wrap: break-word;
+  word-break: break-word;
+  overflow-x: hidden;
 }
 .preview-content :deep(h1) {
   font-family: var(--font-display);
@@ -136,6 +144,8 @@ function cancelEdit() {
   color: var(--text-hi);
   margin: 16px 0 8px;
   text-transform: uppercase;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .preview-content :deep(h2) {
   font-family: var(--font-display);
@@ -160,12 +170,15 @@ function cancelEdit() {
   padding: 12px;
   overflow-x: auto;
   margin: 8px 0;
+  max-width: 100%;
 }
 .preview-content :deep(pre code) {
   background: transparent;
   padding: 0;
   font-size: 10px;
   color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 .preview-content :deep(ul) {
   padding-left: 20px;
@@ -201,6 +214,9 @@ function cancelEdit() {
   width: 100%;
   margin: 10px 0;
   font-size: 12px;
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
 }
 .preview-content :deep(th) {
   text-align: left;

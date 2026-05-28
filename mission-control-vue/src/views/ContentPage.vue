@@ -32,6 +32,7 @@ const docCount = computed(() => contentStore.documentCount)
   gap: 20px;
   align-items: start;
 }
+.content-main { min-width: 0; overflow: hidden; }
 @media (max-width: 900px) {
   .content-layout { grid-template-columns: 1fr; }
 }
