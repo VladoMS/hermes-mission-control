@@ -10,15 +10,31 @@
         <span class="sb-agent-name">{{ agent }}</span>
         <span class="sb-count">{{ (docsByAgent[agent] || []).length }}</span>
       </div>
-      <div v-if="openGroups[agent]" class="sb-docs">
+      <div v-if="openGroups[agent]" class="sb-months">
         <div
-          v-for="doc in docsByAgent[agent]"
-          :key="doc.rel_path"
-          class="sb-doc"
-          :class="{ active: contentStore.selectedDoc?.rel_path === doc.rel_path }"
-          @click="contentStore.selectDocument(doc)"
+          v-for="ym in sortedMonths(agent)"
+          :key="ym"
+          class="sb-month-group"
         >
-          {{ doc.title || doc.filename }}
+          <div class="sb-month" @click="toggleMonth(agent, ym)">
+            <span class="sb-arrow" :class="{ open: openMonths[`${agent}/${ym}`] }">▶</span>
+            <span class="sb-month-text">{{ formatMonth(ym) }}</span>
+            <span class="sb-count">{{ docsByAgentMonth[agent][ym].length }}</span>
+          </div>
+          <div
+            v-if="openMonths[`${agent}/${ym}`]"
+            class="sb-docs"
+          >
+            <div
+              v-for="doc in docsByAgentMonth[agent][ym]"
+              :key="doc.rel_path"
+              class="sb-doc"
+              :class="{ active: contentStore.selectedDoc?.rel_path === doc.rel_path }"
+              @click="contentStore.selectDocument(doc)"
+            >
+              {{ doc.title || doc.filename }}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -31,6 +47,9 @@ import { useContentStore } from '../stores/content.js'
 
 const contentStore = useContentStore()
 const openGroups = reactive({})
+const openMonths = reactive({})
+
+const MONTH_NAMES = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
 
 const ACCENTS = {
   default: '#ff3b1f', coder: '#1ec8ff', researcher: '#4ade80',
@@ -39,9 +58,26 @@ const ACCENTS = {
 
 function accent(name) { return ACCENTS[name] || '#6b7585' }
 function toggleGroup(agent) { openGroups[agent] = !openGroups[agent] }
+function toggleMonth(agent, ym) {
+  const key = `${agent}/${ym}`
+  openMonths[key] = !openMonths[key]
+}
+
+function formatMonth(ym) {
+  if (ym === 'unknown') return 'UNKNOWN'
+  const [y, m] = ym.split('-')
+  return `${MONTH_NAMES[parseInt(m) - 1] || m} ${y}`
+}
+
+function sortedMonths(agent) {
+  const months = docsByAgentMonth.value[agent]
+  if (!months) return []
+  return Object.keys(months).sort().reverse()
+}
 
 const agentList = computed(() => contentStore.agentList)
 const docsByAgent = computed(() => contentStore.documentsByAgent)
+const docsByAgentMonth = computed(() => contentStore.documentsByAgentAndMonth)
 
 onMounted(() => { contentStore.fetchDocuments() })
 </script>
@@ -81,7 +117,26 @@ onMounted(() => { contentStore.fetchDocuments() })
 .sb-agent-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .sb-agent-name { flex: 1; text-transform: uppercase; }
 .sb-count { color: var(--text-faint); font-size: 10px; }
-.sb-docs { padding-left: 18px; }
+
+/* Month level */
+.sb-months { padding-left: 14px; }
+.sb-month-group { margin-top: 1px; }
+.sb-month {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  user-select: none;
+}
+.sb-month:hover { color: var(--text); }
+.sb-month-text { flex: 1; }
+
+.sb-docs { padding-left: 16px; }
 .sb-doc {
   padding: 5px 8px;
   cursor: pointer;

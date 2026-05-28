@@ -129,6 +129,25 @@ export const useContentStore = defineStore('content', () => {
     return groups
   })
 
+  /** Documents grouped by agent, then by year-month. */
+  const documentsByAgentAndMonth = computed(() => {
+    const groups = {}
+    for (const doc of documents.value) {
+      const agent = doc.agent || 'unknown'
+      if (!groups[agent]) groups[agent] = {}
+
+      let ym = 'unknown'
+      if (doc.modified_at) {
+        const d = new Date(doc.modified_at * 1000)
+        ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      }
+
+      if (!groups[agent][ym]) groups[agent][ym] = []
+      groups[agent][ym].push(doc)
+    }
+    return groups
+  })
+
   /** Sorted list of agent names with documents */
   const agentList = computed(() =>
     Object.keys(documentsByAgent.value).sort()
@@ -144,6 +163,7 @@ export const useContentStore = defineStore('content', () => {
     isEditing,
     isLoading,
     documentsByAgent,
+    documentsByAgentAndMonth,
     agentList,
     documentCount,
     fetchDocuments,
