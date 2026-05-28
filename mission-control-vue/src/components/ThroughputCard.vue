@@ -25,6 +25,8 @@ const totalSessions = computed(() => {
 .throughput-card {
   padding: 18px;
   margin-bottom: 28px;
+  min-height: 0;
+  overflow: hidden;
 }
 .tp-total {
   font-family: var(--font-display);

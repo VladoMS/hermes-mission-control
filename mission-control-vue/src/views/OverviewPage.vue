@@ -7,6 +7,7 @@
       </div>
     </div>
 
+    <GlanceStrip />
     <StatsStrip />
     <DirectiveCycler />
 
@@ -55,6 +56,7 @@
 import { computed } from 'vue'
 import { useSnapshotStore } from '../stores/snapshotStore.js'
 import StatsStrip from '../components/StatsStrip.vue'
+import GlanceStrip from '../components/GlanceStrip.vue'
 import RadarCanvas from '../components/RadarCanvas.vue'
 import ThroughputCard from '../components/ThroughputCard.vue'
 import DirectiveCycler from '../components/DirectiveCycler.vue'
@@ -103,14 +105,21 @@ const ops = computed(() => {
 </script>
 
 <style scoped>
-.overview-page { position: relative; z-index: 5; }
+.overview-page { position: relative; z-index: 5; overflow-x: hidden; }
 .overview-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
   margin-bottom: 28px;
+  min-height: 0;
 }
-.grid-left, .grid-right { display: flex; flex-direction: column; gap: 20px; }
+.grid-left, .grid-right {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 0;
+  min-width: 0;
+}
 
 /* Ops footer */
 .ops-footer { padding: 18px; }

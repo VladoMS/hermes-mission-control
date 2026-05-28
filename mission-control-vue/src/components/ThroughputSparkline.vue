@@ -1,14 +1,14 @@
 <template>
-  <div class="sparkline-wrap">
+  <div ref="wrapRef" class="sparkline-wrap">
     <div class="sparkline-canvas">
-      <Line v-if="ready" :data="chartData" :options="chartOptions" />
+      <Line v-if="ready" :key="chartKey" :data="chartData" :options="chartOptions" />
     </div>
     <div class="sparkline-peak" v-if="peakLabel">{{ peakLabel }}</div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { Line } from 'vue-chartjs'
 import {
   Chart as ChartJS,
@@ -24,8 +24,10 @@ import { useSnapshotStore } from '../stores/snapshotStore.js'
 ChartJS.register(LineElement, PointElement, Filler, CategoryScale, LinearScale, Tooltip)
 
 const snap = useSnapshotStore()
+const wrapRef = ref(null)
 const ready = ref(false)
 const peakLabel = ref('')
+const chartKey = ref(0)
 
 const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const todayIdx = new Date().getDay()
@@ -48,7 +50,6 @@ const points = computed(() => {
     for (let i = 0; i < Math.min(daily.length, 7); i++) pts[i] += daily[i] || 0
   }
 
-  // Fallback: compute from raw sessions if no profile daily data
   const total = pts.reduce((a, b) => a + b, 0)
   if (total === 0 && d.sessions?.length > 0) {
     const now = Date.now() / 1000
@@ -147,17 +148,34 @@ const chartOptions = {
   },
 }
 
-// Only render after first mount to avoid hydration mismatch with gradient
-watch(points, () => { ready.value = true }, { immediate: true })
+// Recreate chart on container resize (key change → full remount)
+let ro = null
+
+onMounted(() => {
+  ready.value = true
+  if (wrapRef.value) {
+    ro = new ResizeObserver(() => {
+      chartKey.value++
+    })
+    ro.observe(wrapRef.value)
+  }
+})
+
+onUnmounted(() => {
+  if (ro) {
+    ro.disconnect()
+    ro = null
+  }
+})
 </script>
 
 <style scoped>
 .sparkline-wrap {
-  position: relative;
+  width: 100%;
 }
 .sparkline-canvas {
-  height: 80px;
   width: 100%;
+  height: 80px;
 }
 .sparkline-peak {
   font-family: var(--font-mono);
