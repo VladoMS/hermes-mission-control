@@ -44,6 +44,18 @@
         </div>
       </div>
 
+      <!-- File metadata bar -->
+      <div
+        v-if="contentStore.absPath"
+        class="preview-path-meta"
+        @click="copyPath"
+        :title="'Click to copy full path'"
+      >
+        <span class="path-label mono">PATH ›</span>
+        <span class="path-value mono">{{ contentStore.absPath }}</span>
+        <span v-if="copied" class="path-copied mono">COPIED</span>
+      </div>
+
       <!-- Render mode (default) -->
       <div v-if="!contentStore.isEditing" class="preview-content" v-html="renderedHtml"></div>
 
@@ -77,6 +89,7 @@ marked.setOptions({
 
 const contentStore = useContentStore()
 const editText = ref('')
+const copied = ref(false)
 
 const renderedHtml = computed(() => {
   const text = contentStore.docContent
@@ -88,6 +101,42 @@ const renderedHtml = computed(() => {
 watch(() => contentStore.docContent, (val) => {
   editText.value = val
 })
+
+function copyPath() {
+  const text = contentStore.absPath
+  if (!text) return
+
+  // Try modern Clipboard API first (secure contexts only)
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => {
+      copied.value = true
+      setTimeout(() => { copied.value = false }, 1500)
+    }).catch(() => fallbackCopy(text))
+    return
+  }
+
+  // Fallback for plain HTTP (Tailscale, etc.)
+  fallbackCopy(text)
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.left = '-9999px'
+  ta.style.top = '-9999px'
+  document.body.appendChild(ta)
+  ta.focus()
+  ta.select()
+  try {
+    document.execCommand('copy')
+    copied.value = true
+    setTimeout(() => { copied.value = false }, 1500)
+  } catch {
+    // Copy failed silently
+  }
+  document.body.removeChild(ta)
+}
 
 async function handleSave() {
   const doc = contentStore.selectedDoc
@@ -129,6 +178,45 @@ function cancelEdit() {
   gap: 8px;
   flex-shrink: 0;
 }
+
+/* File path metadata bar */
+.preview-path-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 6px 10px;
+  background: var(--bg-deep);
+  border-left: 2px solid var(--cyan);
+  cursor: pointer;
+  transition: border-color 0.2s;
+  overflow: hidden;
+  user-select: none;
+}
+.preview-path-meta:hover {
+  border-left-color: var(--red);
+}
+.path-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+.path-value {
+  font-size: 11px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.path-copied {
+  font-size: 10px;
+  color: var(--green);
+  flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .preview-content {
   font-family: var(--font-body);
   font-size: 13px;

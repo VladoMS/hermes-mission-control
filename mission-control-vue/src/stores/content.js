@@ -15,6 +15,9 @@ export const useContentStore = defineStore('content', () => {
   /** Raw markdown content of the selected document */
   const docContent = ref('')
 
+  /** Absolute filesystem path of the selected document */
+  const absPath = ref('')
+
   /** Whether the editor is active */
   const isEditing = ref(false)
 
@@ -57,6 +60,7 @@ export const useContentStore = defineStore('content', () => {
         return null
       }
       docContent.value = data.content || ''
+      absPath.value = data.abs_path || ''
       return data.content
     } catch (e) {
       console.warn('Content: fetchDocContent failed:', e.message)
@@ -98,6 +102,7 @@ export const useContentStore = defineStore('content', () => {
   function selectDocument(doc) {
     selectedDoc.value = doc
     docContent.value = ''
+    absPath.value = ''
     isEditing.value = false
     if (doc?.rel_path) {
       fetchDocContent(doc.rel_path)
@@ -108,6 +113,7 @@ export const useContentStore = defineStore('content', () => {
   function clearSelection() {
     selectedDoc.value = null
     docContent.value = ''
+    absPath.value = ''
     isEditing.value = false
   }
 
@@ -160,6 +166,7 @@ export const useContentStore = defineStore('content', () => {
     documents,
     selectedDoc,
     docContent,
+    absPath,
     isEditing,
     isLoading,
     documentsByAgent,

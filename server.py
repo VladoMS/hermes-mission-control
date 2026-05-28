@@ -1301,6 +1301,7 @@ def list_content():
                             "agent": profile,
                             "filename": fname,
                             "rel_path": rel,
+                            "abs_path": fpath,
                             "title": title,
                             "modified_at": st.st_mtime,
                             "size": st.st_size,
@@ -1316,15 +1317,15 @@ def list_content():
 
 
 def read_content(rel_path):
-    """Read raw markdown content. Returns (content, error)."""
+    """Read raw markdown content. Returns (content, abs_path, error)."""
     abs_path, err = _validate_content_path(rel_path)
     if err:
-        return None, err
+        return None, None, err
     try:
         with open(abs_path, "r") as f:
-            return f.read(), None
+            return f.read(), abs_path, None
     except Exception as e:
-        return None, f"read error: {e}"
+        return None, None, f"read error: {e}"
 
 
 def save_content(rel_path, content):
@@ -2324,11 +2325,11 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
         if not rel_path:
             self._json_error(HTTPStatus.BAD_REQUEST, "missing 'path' parameter")
             return
-        content, err = read_content(rel_path)
+        content, abs_path, err = read_content(rel_path)
         if err:
             self._json_error(HTTPStatus.BAD_REQUEST, err)
             return
-        body = json.dumps({"path": rel_path, "content": content}).encode("utf-8")
+        body = json.dumps({"path": rel_path, "abs_path": abs_path, "content": content}).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", len(body))
