@@ -2178,7 +2178,9 @@ def publish_channel(event_type, collect_fn, interval, queue, retention_db_path=N
                         pass
         except Exception:
             # Log but don't crash the publisher thread
-            pass
+            import traceback, sys
+            print(f"[publisher:{event_type}] ERROR: {traceback.format_exc()}", file=sys.stderr, flush=True)
+            time.sleep(1)  # brief pause before retry to avoid tight crash loops
 
         # Burst mode: if signaled, skip sleep and collect immediately
         burst_event = _CHANNEL_BURST.get(event_type)
@@ -2456,6 +2458,7 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", len(body))
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         self._cors_headers()
         self.end_headers()
         self.wfile.write(body)

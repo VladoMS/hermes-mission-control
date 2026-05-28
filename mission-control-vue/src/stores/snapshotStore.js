@@ -51,13 +51,13 @@ export const useSnapshotStore = defineStore('snapshot', () => {
     _loaded[key] = true  // mark this channel as loaded
 
     if (!data.value) {
-      // First data — initialize with just this channel
       data.value = { [key]: value }
     } else {
-      // Merge — shallow replace this key
       data.value = { ...data.value, [key]: value }
     }
 
+    console.log('[MC] store.patch key=' + key + ' dataKeys=' + Object.keys(data.value).join(',') + ' firstTime=' + !_fingerprints._wasSet)
+    _fingerprints._wasSet = true
     lastUpdated.value = Date.now() / 1000
     connected.value = true
     return true

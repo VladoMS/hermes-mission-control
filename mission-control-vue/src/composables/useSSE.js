@@ -3,13 +3,12 @@ import { useSnapshotStore } from '../stores/snapshotStore.js'
 
 // ── Module-level singletons ──
 let source = null
-let channelPollTimers = {}  // { channelName: intervalId }
+let channelPollTimers = {}
 
-const uplink = ref('disconnected') // 'synced' | 'degraded' | 'offline' | 'connecting'
+const uplink = ref('disconnected')
 const sseActive = ref(false)
 
 // ── Channel event type → store key mapping ──
-// SSE event name → snapshotStore.data key (and REST endpoint path)
 const CHANNELS = {
   'gateway':          { key: 'gateway',          tier: 1, interval: 5000 },
   'processes':        { key: 'processes',        tier: 1, interval: 5000 },
@@ -24,17 +23,11 @@ const CHANNELS = {
 }
 
 /**
- * useSSE composable — manages EventSource connection to /events
- * with per-channel SSE listeners and per-channel polling fallback.
- * Called once in App.vue on mount.
+ * useSSE composable — must be called during component setup (Pinia must be active).
  */
 export function useSSE() {
-  let store = null
-
-  function _getStore() {
-    if (!store) store = useSnapshotStore()
-    return store
-  }
+  // ── Eagerly create the store while Pinia is active ──
+  const store = useSnapshotStore()
 
   // ── Stop all polling ──
   function _stopAllPolling() {
@@ -45,21 +38,22 @@ export function useSSE() {
   }
 
   // ── Apply channel data to the store ──
-  function _applyChannel(channelName, data) {
+  function _applyChannel(channelName, rawData) {
     const config = CHANNELS[channelName]
-    if (!config) return
+    if (!config) {
+      console.warn('useSSE: unknown channel', channelName)
+      return
+    }
 
     // hermes-health and prod-health merge into 'vps' key
     if (channelName === 'hermes-health') {
-      const st = _getStore()
-      const currentVps = st.data?.vps || {}
-      st.patch('vps', { ...currentVps, hermes: data.health || data })
+      const currentVps = store.data?.vps || {}
+      store.patch('vps', { ...currentVps, hermes: rawData.health || rawData })
     } else if (channelName === 'prod-health') {
-      const st = _getStore()
-      const currentVps = st.data?.vps || {}
-      st.patch('vps', { ...currentVps, prod: data.health || data })
+      const currentVps = store.data?.vps || {}
+      store.patch('vps', { ...currentVps, prod: rawData.health || rawData })
     } else {
-      _getStore().patch(config.key, data)
+      store.patch(config.key, rawData)
     }
   }
 
@@ -68,14 +62,15 @@ export function useSSE() {
     const config = CHANNELS[channelName]
     if (!config || channelPollTimers[channelName]) return
 
+    const url = window.location.origin + '/api/' + channelName
     channelPollTimers[channelName] = setInterval(async () => {
       try {
-        const r = await fetch(`/api/${channelName}`)
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        const r = await fetch(url)
+        if (!r.ok) throw new Error('HTTP ' + r.status)
         const data = await r.json()
         _applyChannel(channelName, data)
       } catch (err) {
-        console.warn(`Poll ${channelName} failed:`, err)
+        console.warn('Poll ' + channelName + ' failed:', err)
       }
     }, config.interval)
   }
@@ -94,13 +89,14 @@ export function useSSE() {
     }
 
     // ── Register per-channel event listeners ──
-    for (const [eventType, config] of Object.entries(CHANNELS)) {
+    for (const eventType of Object.keys(CHANNELS)) {
       source.addEventListener(eventType, (event) => {
         try {
           const data = JSON.parse(event.data)
+          console.log('[MC] SSE ' + eventType + ' received, keys:', Object.keys(data).join(','))
           _applyChannel(eventType, data)
         } catch (err) {
-          console.warn(`SSE ${eventType} parse error:`, err)
+          console.warn('SSE ' + eventType + ' parse error:', err)
         }
       })
     }
