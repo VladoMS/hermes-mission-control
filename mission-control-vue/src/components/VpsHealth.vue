@@ -37,7 +37,7 @@ const snap = useSnapshotStore()
 const hosts = computed(() => {
   const d = snap.data
   // Before ANY data arrives: both hosts loading
-  if (!d) {
+  if (!d || Object.keys(d).length === 0) {
     return [
       { key: 'hermes', label: 'HERMES VPS', data: null, loading: true },
       { key: 'prod', label: 'PRODUCTION', data: null, loading: true },

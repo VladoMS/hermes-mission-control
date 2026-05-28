@@ -72,7 +72,7 @@ const snap = useSnapshotStore()
 
 const ops = computed(() => {
   const d = snap.data
-  if (!d) {
+  if (!d || Object.keys(d).length === 0) {
     return {
       queueDepth: '--', sessionCount: '--', errors: '--', tasksToday: '--', uptime: '--',
       loading: { queueDepth: true, sessionCount: true, tasksToday: true, uptime: true },
