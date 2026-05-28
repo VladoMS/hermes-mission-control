@@ -35,6 +35,15 @@
 
     <!-- Status cluster -->
     <div class="status-cluster">
+      <button
+        v-if="pwaInstall.installable.value"
+        class="install-btn"
+        @click="pwaInstall.install()"
+        title="Install as desktop app"
+      >
+        <span class="install-icon">⬇</span>
+        <span class="install-label">INSTALL</span>
+      </button>
       <UplinkStatus />
       <span class="utc-clock">{{ uiStore.clock }}</span>
       <VersionBadge />
@@ -51,11 +60,13 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUiStore } from '../stores/ui.js'
+import { usePwaInstall } from '../composables/usePwaInstall.js'
 import UplinkStatus from './UplinkStatus.vue'
 import VersionBadge from './VersionBadge.vue'
 
 const route = useRoute()
 const uiStore = useUiStore()
+const pwaInstall = usePwaInstall()
 
 const tabs = [
   { id: 'overview', label: 'Overview', path: '/' },
@@ -245,6 +256,36 @@ onUnmounted(() => {
 .utc-clock {
   color: var(--text);
   letter-spacing: 0.08em;
+}
+
+/* ── PWA Install button ── */
+.install-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  background: var(--cyan);
+  color: var(--bg-void);
+  border: none;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.install-btn:hover {
+  background: #3dd4ff;
+}
+
+.install-icon {
+  font-size: 11px;
+}
+
+.install-label {
+  white-space: nowrap;
 }
 
 /* ── Responsive ── */

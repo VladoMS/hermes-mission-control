@@ -12,9 +12,11 @@ The dashboard reads Hermes data sources read-only. The only writes are to the lo
 
 ### Backend: Python stdlib only
 
-- `http.server`, `sqlite3`, `json`, `subprocess`, `threading`, `os`, `time`. No pip packages.
+- `http.server`, `sqlite3`, `json`, `subprocess`, `threading`, `os`, `time`, `ssl`. No pip packages.
 - `server.py` — snapshot assembly, SSE streaming, content API, Dokku log streaming.
-- Port `0.0.0.0:51763`. Firewall restricts to Tailscale CGNAT only. Never expose to public internet.
+- Port `0.0.0.0:51763` **over HTTPS** (self-signed cert, required for PWA features). Firewall restricts to Tailscale CGNAT only. Never expose to public internet.
+- Cert stored in `certs/` (auto-generated on first start, 365-day validity, SAN: `100.67.254.90` + `localhost`).
+- Access via `https://100.67.254.90:51763/` — accept the self-signed cert warning on first visit.
 
 ### Frontend: Vue 3 + Vite
 

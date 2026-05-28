@@ -16,6 +16,7 @@ import http.server
 import json
 import os
 import queue as queue_module
+import ssl
 import sqlite3
 import subprocess
 import threading
@@ -49,6 +50,10 @@ SSE_INTERVAL = 5       # seconds between SSE pushes
 PROD_CACHE_TTL = 30    # seconds — cache prod SSH health to avoid hammering SSH
 SERVERS_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "servers.json")
 DASHBOARD_DB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard.db")
+CERT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "certs")
+CERT_FILE = os.path.join(CERT_DIR, "mc-cert.pem")
+KEY_FILE = os.path.join(CERT_DIR, "mc-key.pem")
+CA_CERT_FILE = os.path.join(CERT_DIR, "ca-cert.pem")
 RETENTION_DAYS = 30
 
 # ── SSE Multiplexer ──────────────────────────────────────────────────────
@@ -2435,8 +2440,15 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
             self._serve_sse(qs)
         elif path == "/api/dokku/logs":
             self._serve_dokku_logs(qs)
+        elif path == "/ca-cert.pem":
+            self._serve_ca_cert()
         # Static assets (served from dist/)
-        elif path.startswith("/assets/") or path == "/favicon.ico":
+        elif (path.startswith("/assets/")
+              or path == "/favicon.ico"
+              or path == "/sw.js"
+              or path == "/manifest.webmanifest"
+              or path.startswith("/icons/")
+              or path == "/icon.svg"):
             self._serve_static(path)
         # SPA fallback — all other paths serve index.html
         else:
@@ -2495,7 +2507,12 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", mime or "application/octet-stream")
         self.send_header("Content-Length", len(body))
-        self.send_header("Cache-Control", "public, max-age=3600")
+        # Service worker must be revalidated on every navigation request
+        if os.path.basename(filepath) == "sw.js":
+            self.send_header("Cache-Control", "max-age=0, must-revalidate")
+            self.send_header("Service-Worker-Allowed", "/")
+        else:
+            self.send_header("Cache-Control", "public, max-age=3600")
         self._cors_headers()
         self.end_headers()
         self.wfile.write(body)
@@ -2518,6 +2535,23 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", len(body))
         self.send_header("Cache-Control", "public, max-age=60")
+        self._cors_headers()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _serve_ca_cert(self):
+        """Serve the CA certificate for client trust installation."""
+        try:
+            with open(CA_CERT_FILE, "rb") as f:
+                body = f.read()
+        except Exception:
+            self.send_error(HTTPStatus.NOT_FOUND, "CA cert not found")
+            return
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/x-pem-file")
+        self.send_header("Content-Length", len(body))
+        self.send_header("Content-Disposition", "attachment; filename=\"mission-control-ca.pem\"")
+        self.send_header("Cache-Control", "no-cache")
         self._cors_headers()
         self.end_headers()
         self.wfile.write(body)
@@ -2737,6 +2771,30 @@ class ThreadingHTTPServer(http.server.ThreadingHTTPServer):
 # Entry point
 # =============================================================================
 
+def _ensure_cert():
+    """Generate a self-signed certificate if one doesn't exist.
+    Returns (cert_path, key_path)."""
+    os.makedirs(CERT_DIR, exist_ok=True, mode=0o700)
+    if os.path.isfile(CERT_FILE) and os.path.isfile(KEY_FILE):
+        return CERT_FILE, KEY_FILE
+
+    print("▶ Generating self-signed SSL certificate (valid 365 days)...")
+    subprocess.run([
+        "openssl", "req", "-x509", "-newkey", "rsa:4096",
+        "-keyout", KEY_FILE,
+        "-out", CERT_FILE,
+        "-days", "365",
+        "-nodes",
+        "-subj", "/CN=Mission Control",
+        "-addext", "subjectAltName=IP:100.67.254.90,DNS:localhost",
+    ], check=True, capture_output=True)
+    os.chmod(KEY_FILE, 0o600)
+    os.chmod(CERT_FILE, 0o644)
+    print(f"  ▶ cert: {CERT_FILE}")
+    print(f"  ▶ key:  {KEY_FILE}")
+    return CERT_FILE, KEY_FILE
+
+
 def main():
     _init_dashboard_db()
     _cleanup_old_snapshots()
@@ -2760,8 +2818,16 @@ def main():
 
     print(f"  ▶ {len(_publisher_threads)} channel publishers started\n")
 
+    # Ensure SSL certificate exists (required for PWA features)
+    cert_path, key_path = _ensure_cert()
+
     server = ThreadingHTTPServer((HOST, PORT), MissionControlHandler)
-    print(f"▶ MISSION CONTROL listening on {HOST}:{PORT}")
+    # Wrap with SSL for HTTPS
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(cert_path, key_path)
+    server.socket = ctx.wrap_socket(server.socket, server_side=True)
+
+    print(f"▶ MISSION CONTROL listening on https://{HOST}:{PORT}")
     print(f"  GET /                → index.html")
     print(f"  GET /api/snapshot    → legacy full snapshot (polling fallback)")
     print(f"  GET /api/gateway     → per-channel REST endpoints")
