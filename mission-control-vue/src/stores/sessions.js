@@ -9,8 +9,11 @@ import { useSnapshotStore } from './snapshotStore.js'
 export const useSessionsStore = defineStore('sessions', () => {
   const snap = useSnapshotStore()
 
-  /** Unified session list (top 50, across all profiles) */
-  const sessions = computed(() => snap.data?.sessions || [])
+  /** Unified session list (top 50, across all profiles — unwraps channel wrapper) */
+  const sessions = computed(() => {
+    const s = snap.data?.sessions
+    return Array.isArray(s) ? s : (s?.sessions || [])
+  })
 
   /** Token/cost ledger aggregate */
   const ledger = computed(() => snap.data?.sessions_ledger || {})

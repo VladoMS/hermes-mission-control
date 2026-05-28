@@ -72,6 +72,7 @@ _CHANNEL_REGISTRY = [
     ("prod-health",     30,   3),
     ("dokku",           60,   3),
     ("server-crons",   300,   3),
+    ("servers",         60,   3),
 ]
 
 # Burst signals — set on new SSE client connect, cleared after one push
@@ -2264,10 +2265,11 @@ def collect_sessions():
 
 
 def collect_kanban():
-    """Collect kanban boards. Returns dict with boards key."""
+    """Collect kanban boards. Returns dict matching the old snapshot kanban shape."""
     errors = []
-    boards = read_kanban_boards(errors)
-    return {"boards": boards, "errors": errors}
+    result = read_kanban_boards(errors)
+    result["errors"] = errors
+    return result
 
 
 def collect_prod_health():
@@ -2298,6 +2300,13 @@ def collect_server_crons():
     return {"crons": crons_by_server, "errors": errors}
 
 
+def collect_servers():
+    """Collect full server list with health, crons, dokku — same shape as build_servers()."""
+    errors = []
+    servers = build_servers(errors)
+    return {"servers": servers, "errors": errors}
+
+
 # Map event_type → collector function (used by publisher threads and REST endpoints)
 _CHANNEL_COLLECTORS = {
     "gateway":          collect_gateway,
@@ -2310,6 +2319,7 @@ _CHANNEL_COLLECTORS = {
     "prod-health":      collect_prod_health,
     "dokku":            collect_dokku,
     "server-crons":     collect_server_crons,
+    "servers":          collect_servers,
 }
 
 
@@ -2412,6 +2422,8 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
             self._serve_channel("dokku", collect_dokku)
         elif path == "/api/server-crons":
             self._serve_channel("server-crons", collect_server_crons)
+        elif path == "/api/servers":
+            self._serve_channel("servers", collect_servers)
         elif path == "/api/content":
             self._serve_content_list()
         elif path == "/api/content/get":

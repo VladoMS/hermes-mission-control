@@ -15,6 +15,7 @@ const CHANNELS = {
   'prod-health':      { key: 'vps',              interval: 30000 },
   'dokku':            { key: 'dokku',            interval: 60000 },
   'server-crons':     { key: 'server_crons',     interval: 300000 },
+  'servers':          { key: 'servers',          interval: 60000 },
 }
 
 /**
