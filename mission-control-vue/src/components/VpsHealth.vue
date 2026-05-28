@@ -4,7 +4,11 @@
     <div class="health-grid">
       <div v-for="host in hosts" :key="host.key" class="health-host">
         <div class="host-name">{{ host.label }}</div>
-        <div v-if="!host.data" class="host-empty">No data</div>
+        <!-- Loading: vps channel hasn't arrived yet (and this host is configured) -->
+        <div v-if="host.loading" class="loading-text">LOADING...</div>
+        <!-- Empty: no data for this host (e.g., prod not in servers.json) -->
+        <div v-else-if="!host.data" class="host-empty">No data</div>
+        <!-- Live data -->
         <template v-else>
           <div class="health-bar-row">
             <div class="health-label">CPU</div>
@@ -31,18 +35,25 @@
 import { computed } from 'vue'
 import { useSnapshotStore } from '../stores/snapshotStore.js'
 
-const snap = useSnapshotStore()
+const store = useSnapshotStore()
 
 const hosts = computed(() => {
-  const d = snap.data
-  if (!d) return []
+  const d = store.data
+  const vpsLoaded = store.isChannelLoaded('vps')
+  if (!d) return [
+    { key: 'hermes', label: 'HERMES VPS', data: null, loading: true },
+    { key: 'prod', label: 'PRODUCTION', data: null, loading: false },
+  ]
+
   const vps = d.vps || {}
   const result = []
   for (const [key, label] of [['hermes', 'HERMES VPS'], ['prod', 'PRODUCTION']]) {
     const h = vps[key]
+    const configured = !!(h && Object.keys(h).length > 0)  // host has data in the vps dict
     result.push({
       key,
       label,
+      loading: !vpsLoaded && configured,
       data: h ? {
         cpu_pct: h.cpu_pct ?? null,
         mem_pct: h.mem?.mem_pct ?? null,

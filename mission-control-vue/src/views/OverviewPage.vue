@@ -29,11 +29,13 @@
       <div class="ops-grid">
         <div class="ops-cell">
           <div class="ops-label">Queue Depth</div>
-          <div class="ops-val">{{ ops.queueDepth }}</div>
+          <div class="ops-val" v-if="ops.loading.queueDepth"><span class="loading-text">LOADING...</span></div>
+          <div class="ops-val" v-else>{{ ops.queueDepth }}</div>
         </div>
         <div class="ops-cell">
           <div class="ops-label">Total Sessions</div>
-          <div class="ops-val">{{ ops.sessionCount }}</div>
+          <div class="ops-val" v-if="ops.loading.sessionCount"><span class="loading-text">LOADING...</span></div>
+          <div class="ops-val" v-else>{{ ops.sessionCount }}</div>
         </div>
         <div class="ops-cell">
           <div class="ops-label">Errors</div>
@@ -41,11 +43,13 @@
         </div>
         <div class="ops-cell">
           <div class="ops-label">Tasks Today</div>
-          <div class="ops-val">{{ ops.tasksToday }}</div>
+          <div class="ops-val" v-if="ops.loading.tasksToday"><span class="loading-text">LOADING...</span></div>
+          <div class="ops-val" v-else>{{ ops.tasksToday }}</div>
         </div>
         <div class="ops-cell">
           <div class="ops-label">Uptime</div>
-          <div class="ops-val">{{ ops.uptime }}</div>
+          <div class="ops-val" v-if="ops.loading.uptime"><span class="loading-text">LOADING...</span></div>
+          <div class="ops-val" v-else>{{ ops.uptime }}</div>
         </div>
       </div>
     </div>
@@ -64,42 +68,64 @@ import SystemStatus from '../components/SystemStatus.vue'
 import VpsHealth from '../components/VpsHealth.vue'
 import ActivityFeed from '../components/ActivityFeed.vue'
 
-const snap = useSnapshotStore()
+const store = useSnapshotStore()
+const snap = store
 
 const ops = computed(() => {
   const d = snap.data
-  if (!d) return { queueDepth: '--', sessionCount: '--', errors: '--', tasksToday: '--', uptime: '--' }
+  if (!d) return {
+    queueDepth: '--', sessionCount: '--', errors: '--', tasksToday: '--', uptime: '--',
+    loading: { queueDepth: true, sessionCount: true, errors: true, tasksToday: true, uptime: true }
+  }
 
+  // Loading detection: is each channel loaded yet?
+  const kanbanLoaded = store.isChannelLoaded('kanban')
+  const sessionsLoaded = store.isChannelLoaded('sessions_ledger')
+  const vpsLoaded = store.isChannelLoaded('vps')
+
+  // — Kanban-derived values —
   const boards = d.kanban?.boards || {}
   let queue = 0, today = 0
-  const todayStr = new Date().toISOString().slice(0, 10)
-  for (const b of Object.values(boards)) {
-    const cols = b.columns || {}
-    queue += (cols.backlog || []).length + (cols.in_progress || []).length
-    for (const col of Object.values(cols)) {
-      for (const t of col) {
-        if (t.created_at) {
-          const ds = new Date(t.created_at * 1000).toISOString().slice(0, 10)
-          if (ds === todayStr) today++
+  if (kanbanLoaded) {
+    const todayStr = new Date().toISOString().slice(0, 10)
+    for (const b of Object.values(boards)) {
+      const cols = b.columns || {}
+      queue += (cols.backlog || []).length + (cols.in_progress || []).length
+      for (const col of Object.values(cols)) {
+        for (const t of col) {
+          if (t.created_at) {
+            const ds = new Date(t.created_at * 1000).toISOString().slice(0, 10)
+            if (ds === todayStr) today++
+          }
         }
       }
     }
   }
 
+  // — Uptime —
   let uptime = '--'
-  const u = d.vps?.hermes?.uptime
-  if (u != null) {
-    const days = Math.floor(u / 86400)
-    const hrs = Math.floor((u % 86400) / 3600)
-    uptime = days + 'd ' + hrs + 'h'
+  if (vpsLoaded) {
+    const u = d.vps?.hermes?.uptime
+    if (u != null) {
+      const days = Math.floor(u / 86400)
+      const hrs = Math.floor((u % 86400) / 3600)
+      uptime = days + 'd ' + hrs + 'h'
+    }
   }
 
   return {
-    queueDepth: queue,
-    sessionCount: d.sessions_ledger?.session_count || d.sessions?.length || 0,
+    queueDepth: kanbanLoaded ? queue : '--',
+    sessionCount: sessionsLoaded ? (d.sessions_ledger?.session_count || d.sessions?.length || 0) : '--',
     errors: (d.errors || []).length,
-    tasksToday: today,
+    tasksToday: kanbanLoaded ? today : '--',
     uptime,
+    loading: {
+      queueDepth: !kanbanLoaded,
+      sessionCount: !sessionsLoaded,
+      errors: false,  // errors array is always collected with the snapshot
+      tasksToday: !kanbanLoaded,
+      uptime: !vpsLoaded,
+    }
   }
 })
 </script>
