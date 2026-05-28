@@ -2186,6 +2186,106 @@ def _sse_multiplex_drain(wfile, flush_fn, queue, timeout=0.5):
 
 
 # =============================================================================
+# Channel collectors — one function per data source
+# Each is thread-safe, never raises, and returns a dict
+# =============================================================================
+
+def collect_gateway():
+    """Collect gateway state. Returns dict with 'data' key, never raises."""
+    gw = read_json(os.path.join(HERMES_HOME, "gateway_state.json"))
+    if gw is None:
+        return {"error": "gateway_state.json: read failed", "data": {}}
+    return {"data": gw}
+
+
+def collect_processes():
+    """Collect managed process list. Returns dict, never raises."""
+    procs = read_json(os.path.join(HERMES_HOME, "processes.json"))
+    return {"processes": procs if procs is not None else []}
+
+
+def collect_hermes_health():
+    """Collect local VPS health. Returns dict, never raises."""
+    errors = []
+    result = get_hermes_health(errors)
+    return {"health": result, "errors": errors}
+
+
+def collect_sessions_ledger():
+    """Collect aggregated session counts and token totals from all state.dbs.
+    Returns the same structure as build_sessions_ledger() but collected independently."""
+    profiles = build_profiles([])  # silent — errors go to a discard list
+    unified, total_count = build_unified_sessions(profiles, [])
+    ledger = build_sessions_ledger(unified, total_count)
+    return ledger
+
+
+def collect_profiles():
+    """Collect profile list with state_db_stats. Returns dict."""
+    errors = []
+    profiles = build_profiles(errors)
+    return {"profiles": profiles, "errors": errors}
+
+
+def collect_sessions():
+    """Collect unified session list (top 50 across all profiles).
+    Returns the capped list — the uncapped count is in sessions_ledger."""
+    profiles = build_profiles([])
+    unified, _ = build_unified_sessions(profiles, [])
+    return {"sessions": unified}
+
+
+def collect_kanban():
+    """Collect kanban boards. Returns dict with boards key."""
+    errors = []
+    boards = read_kanban_boards(errors)
+    return {"boards": boards, "errors": errors}
+
+
+def collect_prod_health():
+    """Collect prod VPS health (SSH, TTL-cached). Returns dict."""
+    errors = []
+    health = get_prod_health(errors)
+    return {"health": health, "errors": errors}
+
+
+def collect_dokku():
+    """Collect Dokku app/container data from prod (SSH). Returns dict."""
+    servers_cfg = _read_servers_config()
+    for srv in servers_cfg:
+        if srv.get("has_dokku"):
+            data = _get_dokku_data(srv["host"])
+            if data:
+                return {"server": srv["name"], "dokku": data}
+    return {"server": None, "dokku": None}
+
+
+def collect_server_crons():
+    """Collect server cron jobs. Returns dict."""
+    servers_cfg = _read_servers_config()
+    crons_by_server = {}
+    errors = []
+    for srv in servers_cfg:
+        crons_by_server[srv["name"]] = _get_server_crons(srv["host"], errors)
+    return {"crons": crons_by_server, "errors": errors}
+
+
+# Map event_type → collector function (used by publisher threads and REST endpoints)
+_CHANNEL_COLLECTORS = {
+    "gateway":          collect_gateway,
+    "processes":        collect_processes,
+    "hermes-health":    collect_hermes_health,
+    "sessions-ledger":  collect_sessions_ledger,
+    "profiles":         collect_profiles,
+    "sessions":         collect_sessions,
+    "kanban":           collect_kanban,
+    "prod-health":      collect_prod_health,
+    "dokku":            collect_dokku,
+    "server-crons":     collect_server_crons,
+}
+
+
+# =============================================================================
 # Snapshot assembly
 # =============================================================================
 
