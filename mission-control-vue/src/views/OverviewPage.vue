@@ -13,11 +13,11 @@
 
     <div class="overview-grid">
       <div class="grid-left">
+        <RadarCanvas />
         <ThroughputCard />
         <VpsHealth />
       </div>
       <div class="grid-right">
-        <RadarCanvas />
         <SystemStatus />
         <ActivityFeed />
       </div>
@@ -108,7 +108,7 @@ const ops = computed(() => {
 .overview-page { position: relative; z-index: 5; overflow-x: hidden; }
 .overview-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 2fr;
   gap: 20px;
   margin-bottom: 28px;
   min-height: 0;
