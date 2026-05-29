@@ -22,10 +22,12 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
-import { useSnapshotStore } from '../stores/snapshotStore.js'
+import { computed } from 'vue'
+import { useSessionsStore } from '../stores/sessions.js'
+import { useKanbanStore } from '../stores/kanban.js'
 
-const snap = useSnapshotStore()
+const sess = useSessionsStore()
+const kan = useKanbanStore()
 
 const COLORS = {
   default: '#ff3b1f', coder: '#1ec8ff', researcher: '#4ade80',
@@ -42,11 +44,8 @@ function ago(ts) {
 }
 
 const activities = computed(() => {
-  const d = snap.data
-  if (!d) return []
-
   const result = []
-  const sessions = d.sessions || []
+  const sessions = sess.sessions || []
   const recent = [...sessions].sort((a, b) => (b.started_at || 0) - (a.started_at || 0)).slice(0, 20)
 
   for (const s of recent) {
@@ -58,8 +57,7 @@ const activities = computed(() => {
     })
   }
 
-  // Add kanban activity
-  const boards = d.kanban?.boards || {}
+  const boards = kan.data?.boards || {}
   for (const [bname, board] of Object.entries(boards)) {
     for (const colName of ['done']) {
       for (const task of (board.columns?.[colName] || []).slice(0, 5)) {

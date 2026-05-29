@@ -42,12 +42,12 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useSnapshotStore } from '../stores/snapshotStore.js'
+import { useOpenRouterStore } from '../stores/openrouter.js'
 
-const snap = useSnapshotStore()
+const or = useOpenRouterStore()
 
 const data = computed(() => {
-  return snap.data?.openrouter_usage || {}
+  return or.data || {}
 })
 
 const hasData = computed(() => {

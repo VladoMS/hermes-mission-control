@@ -1,29 +1,14 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { useSnapshotStore } from './snapshotStore.js'
 
-/**
- * Sessions store — session list, token ledger, filters, and pie chart data.
- * Derives from snapshot.data.sessions and snapshot.data.sessions_ledger.
- */
 export const useSessionsStore = defineStore('sessions', () => {
-  const snap = useSnapshotStore()
-
-  /** Unified session list (top 50, across all profiles) */
-  const sessions = computed(() => snap.data?.sessions || [])
-
-  /** Token/cost ledger aggregate */
-  const ledger = computed(() => snap.data?.sessions_ledger || {})
-
-  /** Daily cost breakdown with predictions */
-  const dailyCosts = computed(() => snap.data?.daily_costs || { days: [], daily_average: 0.0, today_so_far: 0.0 })
-
-  // ── Filters ────────────────────────────────────────────
+  const sessions = ref([])
+  const ledger = ref({})
+  const dailyCosts = ref({ days: [], daily_average: 0.0, today_so_far: 0.0 })
 
   const filterProfile = ref('all')
   const filterModel = ref('all')
 
-  /** Sessions filtered by profile and model */
   const filteredSessions = computed(() => {
     let s = sessions.value
     if (filterProfile.value !== 'all') {
@@ -35,27 +20,21 @@ export const useSessionsStore = defineStore('sessions', () => {
     return s
   })
 
-  /** Unique profile names across all sessions */
   const profilesInSessions = computed(() => {
     const names = new Set(sessions.value.map(s => s.profile).filter(Boolean))
     return [...names].sort()
   })
 
-  /** Unique model names across all sessions */
   const modelsInSessions = computed(() => {
     const names = new Set(sessions.value.map(s => s.model || 'unknown'))
     return [...names].sort()
   })
 
-  /* Total from ledger */
   const totalTokens = computed(() => ledger.value?.total_tokens || 0)
   const totalCost = computed(() => ledger.value?.total_estimated_cost_usd || 0)
   const cacheHitRate = computed(() => ledger.value?.cache_hit_rate_pct || 0)
   const sessionCount = computed(() => ledger.value?.session_count || 0)
 
-  // ── Pie chart data ─────────────────────────────────────
-
-  /** Token distribution by model (for pie/donut charts) */
   const pieByModel = computed(() => {
     const pm = ledger.value?.per_model || {}
     return Object.entries(pm).map(([name, data]) => ({
@@ -71,7 +50,6 @@ export const useSessionsStore = defineStore('sessions', () => {
     }))
   })
 
-  /** Token distribution by profile (for pie/donut charts) */
   const pieByProfile = computed(() => {
     const pp = ledger.value?.per_profile || {}
     return Object.entries(pp).map(([name, data]) => ({
@@ -87,8 +65,6 @@ export const useSessionsStore = defineStore('sessions', () => {
     }))
   })
 
-  // ── Actions ────────────────────────────────────────────
-
   function setFilterProfile(profile) {
     filterProfile.value = profile
   }
@@ -102,23 +78,53 @@ export const useSessionsStore = defineStore('sessions', () => {
     filterModel.value = 'all'
   }
 
+  function patchSessions(newData) {
+    sessions.value = newData
+  }
+
+  function patchLedger(newData) {
+    ledger.value = newData
+  }
+
+  function patchDailyCosts(newData) {
+    dailyCosts.value = newData
+  }
+
+  async function fetchSessions() {
+    try {
+      const r = await fetch('/api/v2/sessions')
+      if (r.ok) sessions.value = await r.json()
+    } catch (e) {
+      console.warn('fetch /api/v2/sessions failed:', e)
+    }
+  }
+
+  async function fetchLedger() {
+    try {
+      const r = await fetch('/api/v2/sessions-ledger')
+      if (r.ok) ledger.value = await r.json()
+    } catch (e) {
+      console.warn('fetch /api/v2/sessions-ledger failed:', e)
+    }
+  }
+
+  async function fetchDailyCosts() {
+    try {
+      const r = await fetch('/api/v2/daily-costs')
+      if (r.ok) dailyCosts.value = await r.json()
+    } catch (e) {
+      console.warn('fetch /api/v2/daily-costs failed:', e)
+    }
+  }
+
   return {
-    sessions,
-    ledger,
-    dailyCosts,
-    filteredSessions,
-    filterProfile,
-    filterModel,
-    profilesInSessions,
-    modelsInSessions,
-    totalTokens,
-    totalCost,
-    cacheHitRate,
-    sessionCount,
-    pieByModel,
-    pieByProfile,
-    setFilterProfile,
-    setFilterModel,
-    resetFilters,
+    sessions, ledger, dailyCosts,
+    filteredSessions, filterProfile, filterModel,
+    profilesInSessions, modelsInSessions,
+    totalTokens, totalCost, cacheHitRate, sessionCount,
+    pieByModel, pieByProfile,
+    setFilterProfile, setFilterModel, resetFilters,
+    patchSessions, patchLedger, patchDailyCosts,
+    fetchSessions, fetchLedger, fetchDailyCosts,
   }
 })

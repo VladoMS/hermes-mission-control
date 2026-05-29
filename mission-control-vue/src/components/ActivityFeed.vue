@@ -11,10 +11,15 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
-import { useSnapshotStore } from '../stores/snapshotStore.js'
+import { ref, watch } from 'vue'
+import { useSessionsStore } from '../stores/sessions.js'
+import { useKanbanStore } from '../stores/kanban.js'
+import { useProfilesStore } from '../stores/profiles.js'
 
-const snap = useSnapshotStore()
+const sess = useSessionsStore()
+const kan = useKanbanStore()
+const prof = useProfilesStore()
+
 let lastFeedKey = ''
 
 const PROFILE_COLORS = {
@@ -34,17 +39,13 @@ function ago(ts) {
 const items = ref([])
 
 function rebuild() {
-  const d = snap.data
-  if (!d) { items.value = []; return }
-
-  const newKey = JSON.stringify([d.profiles?.length, d.sessions?.length, d.errors?.length])
+  const newKey = JSON.stringify([prof.data?.length, sess.sessions?.length])
   if (newKey === lastFeedKey) return
   lastFeedKey = newKey
 
   const result = []
 
-  // Recent sessions
-  const sessions = d.sessions || []
+  const sessions = sess.sessions || []
   const recent = [...sessions].sort((a, b) => (b.started_at || 0) - (a.started_at || 0)).slice(0, 6)
   for (const s of recent) {
     result.push({
@@ -55,8 +56,7 @@ function rebuild() {
     })
   }
 
-  // Recent kanban activity
-  const boards = d.kanban?.boards || {}
+  const boards = kan.data?.boards || {}
   for (const [bname, board] of Object.entries(boards)) {
     const cols = board.columns || {}
     for (const colName of ['in_progress', 'done']) {
@@ -73,12 +73,11 @@ function rebuild() {
     }
   }
 
-  // Sort by actual Unix timestamp (descending = most recent first)
   result.sort((a, b) => (b._ts || 0) - (a._ts || 0))
   items.value = result.slice(0, 12)
 }
 
-watch(() => snap.data, rebuild, { deep: true })
+watch([() => sess.sessions, () => kan.data, () => prof.data], rebuild, { deep: true })
 rebuild()
 </script>
 

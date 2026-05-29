@@ -59,7 +59,9 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useSnapshotStore } from '../stores/snapshotStore.js'
+import { useKanbanStore } from '../stores/kanban.js'
+import { useSessionsStore } from '../stores/sessions.js'
+import { useVpsStore } from '../stores/vps.js'
 import StatsStrip from '../components/StatsStrip.vue'
 import GlanceStrip from '../components/GlanceStrip.vue'
 import RadarCanvas from '../components/RadarCanvas.vue'
@@ -70,25 +72,18 @@ import SystemStatus from '../components/SystemStatus.vue'
 import VpsHealth from '../components/VpsHealth.vue'
 import ActivityFeed from '../components/ActivityFeed.vue'
 
-const snap = useSnapshotStore()
+const kan = useKanbanStore()
+const sess = useSessionsStore()
+const vps = useVpsStore()
 
 const ops = computed(() => {
-  const d = snap.data
-  if (!d || Object.keys(d).length === 0) {
-    return {
-      queueDepth: '--', sessionCount: '--', errors: '--', tasksToday: '--', uptime: '--',
-      loading: { queueDepth: true, sessionCount: true, tasksToday: true, uptime: true },
-    }
-  }
-
-  // Detect which channels have arrived by checking for their data keys
-  const hasKanban = d.kanban && d.kanban.boards && Object.keys(d.kanban.boards).length > 0
-  const hasSessionsLedger = !!(d.sessions_ledger && d.sessions_ledger.session_count != null)
-  const hasVps = !!(d.vps && d.vps.hermes && d.vps.hermes.uptime != null)
+  const boards = kan.data?.boards || {}
+  const hasKanban = Object.keys(boards).length > 0
+  const hasSessionsLedger = !!(sess.ledger && sess.ledger.session_count != null)
+  const hasVps = !!(vps.hermes && vps.hermes.uptime != null)
 
   // — Kanban-derived values —
   let queue = 0, today = 0
-  const boards = (d.kanban && d.kanban.boards) ? d.kanban.boards : {}
   const todayStr = new Date().toISOString().slice(0, 10)
   for (const b of Object.values(boards)) {
     const cols = (b && b.columns) ? b.columns : {}
@@ -107,7 +102,7 @@ const ops = computed(() => {
 
   // — Uptime —
   let uptime = '--'
-  const u = d.vps && d.vps.hermes ? d.vps.hermes.uptime : null
+  const u = vps.hermes ? vps.hermes.uptime : null
   if (u != null) {
     const days = Math.floor(u / 86400)
     const hrs = Math.floor((u % 86400) / 3600)
@@ -116,10 +111,10 @@ const ops = computed(() => {
 
   return {
     queueDepth: queue,
-    sessionCount: (d.sessions_ledger && d.sessions_ledger.session_count != null)
-      ? d.sessions_ledger.session_count
-      : (Array.isArray(d.sessions) ? d.sessions.length : 0),
-    errors: Array.isArray(d.errors) ? d.errors.length : 0,
+    sessionCount: (sess.ledger && sess.ledger.session_count != null)
+      ? sess.ledger.session_count
+      : (Array.isArray(sess.sessions) ? sess.sessions.length : 0),
+    errors: 0,
     tasksToday: today,
     uptime,
     loading: {

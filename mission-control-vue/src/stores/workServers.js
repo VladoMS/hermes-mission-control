@@ -104,5 +104,41 @@ export const useWorkServersStore = defineStore('workServers', () => {
     return Math.floor(diff / 86400) + 'd ago'
   }
 
-  return { system, docker, nexus, jenkins, postgres, lastCollected, servers, patch, ago }
+  async function fetchSystem() {
+    try {
+      const r = await fetch('/api/v2/work-system')
+      if (r.ok) { system.value = await r.json(); lastCollected.value.system = Date.now() / 1000 }
+    } catch (e) { console.warn('fetch /api/v2/work-system failed:', e) }
+  }
+
+  async function fetchDocker() {
+    try {
+      const r = await fetch('/api/v2/work-docker')
+      if (r.ok) { docker.value = await r.json(); lastCollected.value.docker = Date.now() / 1000 }
+    } catch (e) { console.warn('fetch /api/v2/work-docker failed:', e) }
+  }
+
+  async function fetchNexus() {
+    try {
+      const r = await fetch('/api/v2/work-nexus')
+      if (r.ok) { nexus.value = await r.json(); lastCollected.value.nexus = Date.now() / 1000 }
+    } catch (e) { console.warn('fetch /api/v2/work-nexus failed:', e) }
+  }
+
+  async function fetchJenkins() {
+    try {
+      const r = await fetch('/api/v2/work-jenkins')
+      if (r.ok) { jenkins.value = await r.json(); lastCollected.value.jenkins = Date.now() / 1000 }
+    } catch (e) { console.warn('fetch /api/v2/work-jenkins failed:', e) }
+  }
+
+  async function fetchPostgres() {
+    try {
+      const r = await fetch('/api/v2/work-postgres')
+      if (r.ok) { postgres.value = await r.json(); lastCollected.value.postgres = Date.now() / 1000 }
+    } catch (e) { console.warn('fetch /api/v2/work-postgres failed:', e) }
+  }
+
+  return { system, docker, nexus, jenkins, postgres, lastCollected, servers, patch, ago,
+    fetchSystem, fetchDocker, fetchNexus, fetchJenkins, fetchPostgres }
 })

@@ -14,9 +14,13 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, computed } from 'vue'
-import { useSnapshotStore } from '../stores/snapshotStore.js'
+import { useGatewayStore } from '../stores/gateway.js'
+import { useProfilesStore } from '../stores/profiles.js'
+import { useKanbanStore } from '../stores/kanban.js'
 
-const snap = useSnapshotStore()
+const gw = useGatewayStore()
+const prof = useProfilesStore()
+const kan = useKanbanStore()
 const canvas = ref(null)
 const sweepLabel = ref('')
 let rafId = null
@@ -24,19 +28,15 @@ let sweepAngle = 0
 let lastDataKey = ''
 
 const labels = computed(() => {
-  const d = snap.data
-  if (!d) return []
-  const profiles = d.profiles || []
-  const kanban = d.kanban?.boards || {}
-  const gw = d.gateway || {}
+  const profiles = prof.data || []
+  const boards = kan.data?.boards || {}
+  const gd = gw.data || {}
   const items = []
-  if (gw.gateway_state) items.push(gw.gateway_state.toUpperCase())
+  if (gd.gateway_state) items.push(gd.gateway_state.toUpperCase())
   items.push((profiles.length || 0) + ' PROFILES')
   let blocked = 0
-  for (const b of Object.values(kanban)) blocked += (b.columns?.blocked || []).length
+  for (const b of Object.values(boards)) blocked += (b.columns?.blocked || []).length
   if (blocked) items.push(blocked + ' BLOCKED')
-  const errCount = (d.errors || []).length
-  if (errCount) items.push(errCount + ' ERRORS')
   return items
 })
 
@@ -75,7 +75,7 @@ function draw() {
   }
 
   // Profile dots
-  const profiles = snap.data?.profiles || []
+  const profiles = prof.data || []
   let totalSessions = 0
   for (const p of profiles) {
     totalSessions += p.state_db_stats?.session_count || 0
@@ -111,14 +111,12 @@ function draw() {
 }
 
 function animate() {
-  const d = snap.data
-  const key = d ? JSON.stringify([d.profiles?.length, d.errors?.length]) : ''
+  const key = JSON.stringify([prof.data?.length || 0])
   if (key !== lastDataKey) {
     lastDataKey = key
     sweepLabel.value = labels.value[0] || 'SCANNING'
   }
   draw()
-  // Cycle label every ~2.6s (roughly 43 frames at 60fps)
   const lblIdx = Math.floor((sweepAngle / (Math.PI * 2)) * labels.value.length) % labels.value.length
   sweepLabel.value = labels.value[lblIdx] || 'SCANNING'
   rafId = requestAnimationFrame(animate)

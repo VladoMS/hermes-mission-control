@@ -24,9 +24,13 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useSnapshotStore } from '../stores/snapshotStore.js'
+import { useProfilesStore } from '../stores/profiles.js'
+import { useKanbanStore } from '../stores/kanban.js'
+import { useSessionsStore } from '../stores/sessions.js'
 
-const snap = useSnapshotStore()
+const prof = useProfilesStore()
+const kan = useKanbanStore()
+const sess = useSessionsStore()
 
 function fmtTokens(n) {
   if (!n && n !== 0) return '--'
@@ -36,24 +40,21 @@ function fmtTokens(n) {
 }
 
 const stats = computed(() => {
-  const d = snap.data
-  if (!d) return { activeSessions: '--', blockedTasks: '--', errors: '--', tokensToday: '--' }
-
   let totalSessions = 0
-  for (const p of (d.profiles || [])) {
+  for (const p of (prof.data || [])) {
     const s = p.state_db_stats
     totalSessions += (s?.active_sessions || 0) + (s?.completed_sessions || 0)
   }
 
-  const kanbanBoards = d.kanban?.boards || {}
+  const boards = kan.data?.boards || {}
   let blocked = 0
-  for (const b of Object.values(kanbanBoards)) blocked += (b.columns?.blocked || []).length
+  for (const b of Object.values(boards)) blocked += (b.columns?.blocked || []).length
 
   return {
     activeSessions: totalSessions,
     blockedTasks: blocked,
-    errors: (d.errors || []).length,
-    tokensToday: fmtTokens(d.sessions_ledger?.total_tokens || 0),
+    errors: 0,
+    tokensToday: fmtTokens(sess.ledger?.total_tokens || 0),
   }
 })
 </script>

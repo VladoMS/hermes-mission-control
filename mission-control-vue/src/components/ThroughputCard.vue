@@ -9,15 +9,13 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useSnapshotStore } from '../stores/snapshotStore.js'
+import { useSessionsStore } from '../stores/sessions.js'
 import ThroughputSparkline from './ThroughputSparkline.vue'
 
-const snap = useSnapshotStore()
+const sess = useSessionsStore()
 
 const totalSessions = computed(() => {
-  const d = snap.data
-  if (!d) return '--'
-  return d.sessions_ledger?.session_count || d.sessions?.length || '--'
+  return sess.ledger?.session_count || sess.sessions?.length || '--'
 })
 </script>
 

@@ -9,9 +9,17 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useSnapshotStore } from '../stores/snapshotStore.js'
+import { useGatewayStore } from '../stores/gateway.js'
+import { useProfilesStore } from '../stores/profiles.js'
+import { useSessionsStore } from '../stores/sessions.js'
+import { useKanbanStore } from '../stores/kanban.js'
+import { useOpenRouterStore } from '../stores/openrouter.js'
 
-const snap = useSnapshotStore()
+const gw = useGatewayStore()
+const prof = useProfilesStore()
+const sess = useSessionsStore()
+const kan = useKanbanStore()
+const or = useOpenRouterStore()
 
 function fmtTokens(n) {
   if (!n && n !== 0) return '--'
@@ -22,24 +30,20 @@ function fmtTokens(n) {
 }
 
 const stats = computed(() => {
-  const d = snap.data
-  if (!d) return []
-
-  const gwState = (d.gateway?.gateway_state || 'unknown').toUpperCase()
-  const profiles = d.profiles?.length || 0
-  const sessions = d.sessions || []
+  const gwState = (gw.data?.gateway_state || 'unknown').toUpperCase()
+  const profiles = prof.data?.length || 0
+  const sessions = sess.sessions || []
   const todayCutoff = Date.now() / 1000 - 86400
   const sessionsToday = Array.isArray(sessions)
     ? sessions.filter(s => s.started_at && s.started_at >= todayCutoff).length
     : 0
-  const ledger = d.sessions_ledger || {}
-  const tokens = ledger.total_tokens || 0
-  const orUsage = d.openrouter_usage || {}
-  const spend = orUsage.total_usage_usd != null ? '$' + Number(orUsage.total_usage_usd).toFixed(2) : '--'
+  const tokens = sess.ledger?.total_tokens || 0
+  const orData = or.data || {}
+  const spend = orData.total_usage_usd != null ? '$' + Number(orData.total_usage_usd).toFixed(2) : '--'
 
-  const kanban = d.kanban?.boards || {}
+  const boards = kan.data?.boards || {}
   let totalTasks = 0
-  for (const b of Object.values(kanban)) totalTasks += b.task_count || 0
+  for (const b of Object.values(boards)) totalTasks += b.task_count || 0
 
   return [
     { label: 'GATEWAY', value: gwState },

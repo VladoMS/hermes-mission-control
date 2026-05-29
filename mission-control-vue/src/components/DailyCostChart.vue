@@ -34,14 +34,35 @@ const sessionsStore = useSessionsStore()
 const canvas = ref(null)
 
 const dailyCosts = computed(() => sessionsStore.dailyCosts)
-const days = computed(() => dailyCosts.value?.days || [])
+const allDays = computed(() => dailyCosts.value?.days || [])
 const dailyAverage = computed(() => dailyCosts.value?.daily_average || 0)
 const todaySoFar = computed(() => dailyCosts.value?.today_so_far || 0)
 const monthlyProjection = computed(() => dailyCosts.value?.monthly_projection || 0)
 
+function today() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const windowStart = computed(() => {
+  const d = new Date()
+  d.setDate(d.getDate() - 7)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+})
+
+const windowEnd = computed(() => {
+  const d = new Date()
+  d.setDate(d.getDate() + 7)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+})
+
+const days = computed(() =>
+  allDays.value.filter(d => d.date >= windowStart.value && d.date <= windowEnd.value)
+)
+
 function fmtCost(n) {
   if (!n && n !== 0) return '--'
-  return '$' + Number(n).toFixed(4)
+  return '$' + Number(n).toFixed(2)
 }
 
 // ── Canvas drawing ─────────────────────────────────────────
@@ -125,7 +146,7 @@ function draw() {
     ctx.lineTo(w - pad.right, y)
     ctx.stroke()
 
-    ctx.fillText('$' + val.toFixed(4), pad.left - 6, y)
+    ctx.fillText('$' + val.toFixed(2), pad.left - 6, y)
   }
 
   // Daily average reference line
@@ -143,7 +164,7 @@ function draw() {
     ctx.fillStyle = COLORS.avg
     ctx.textAlign = 'right'
     ctx.font = '9px "JetBrains Mono"'
-    ctx.fillText('$' + dailyAverage.value.toFixed(4), pad.left - 6, avgY - 6)
+    ctx.fillText('$' + dailyAverage.value.toFixed(2), pad.left - 6, avgY - 6)
   }
 
   // Separate actual and predicted entries

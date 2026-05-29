@@ -7,9 +7,11 @@
 
 <script setup>
 import { ref, watch, onMounted } from 'vue'
-import { useSnapshotStore } from '../stores/snapshotStore.js'
+import { useProfilesStore } from '../stores/profiles.js'
+import { useSessionsStore } from '../stores/sessions.js'
 
-const snap = useSnapshotStore()
+const prof = useProfilesStore()
+const sess = useSessionsStore()
 const canvas = ref(null)
 const peakLabel = ref('')
 let lastKey = ''
@@ -24,20 +26,17 @@ function draw() {
   if (c.width !== w) c.width = w
   if (c.height !== h) c.height = h
 
-  const d = snap.data
-  if (!d) return
-
   let points = [0, 0, 0, 0, 0, 0, 0]
-  const profiles = d.profiles || []
+  const profiles = prof.data || []
   for (const p of profiles) {
     const daily = p.state_db_stats?.daily_sessions_7d || []
     for (let i = 0; i < Math.min(daily.length, 7); i++) points[i] += daily[i] || 0
   }
   let total = points.reduce((a, b) => a + b, 0)
-  if (total === 0 && d.sessions?.length > 0) {
+  if (total === 0 && sess.sessions?.length > 0) {
     const now = Date.now() / 1000
     const buckets = [0, 0, 0, 0, 0, 0, 0]
-    for (const s of d.sessions) {
+    for (const s of sess.sessions) {
       if (!s.started_at) continue
       const daysAgo = Math.floor((now - s.started_at) / 86400)
       if (daysAgo >= 0 && daysAgo < 7) buckets[6 - daysAgo]++
@@ -110,7 +109,7 @@ function draw() {
 }
 
 onMounted(() => { draw() })
-watch(() => snap.data, () => draw(), { deep: false })
+watch([() => prof.data, () => sess.sessions], () => draw(), { deep: false })
 </script>
 
 <style scoped>

@@ -19,11 +19,13 @@ import {
   LinearScale,
   Tooltip,
 } from 'chart.js'
-import { useSnapshotStore } from '../stores/snapshotStore.js'
+import { useProfilesStore } from '../stores/profiles.js'
+import { useSessionsStore } from '../stores/sessions.js'
 
 ChartJS.register(LineElement, PointElement, Filler, CategoryScale, LinearScale, Tooltip)
 
-const snap = useSnapshotStore()
+const prof = useProfilesStore()
+const sess = useSessionsStore()
 const wrapRef = ref(null)
 const ready = ref(false)
 const peakLabel = ref('')
@@ -40,21 +42,18 @@ function dayLabels(points) {
 }
 
 const points = computed(() => {
-  const d = snap.data
-  if (!d) return [0, 0, 0, 0, 0, 0, 0]
-
+  const profiles = prof.data || []
   let pts = [0, 0, 0, 0, 0, 0, 0]
-  const profiles = d.profiles || []
   for (const p of profiles) {
     const daily = p.state_db_stats?.daily_sessions_7d || []
     for (let i = 0; i < Math.min(daily.length, 7); i++) pts[i] += daily[i] || 0
   }
 
   const total = pts.reduce((a, b) => a + b, 0)
-  if (total === 0 && d.sessions?.length > 0) {
+  if (total === 0 && sess.sessions?.length > 0) {
     const now = Date.now() / 1000
     pts = [0, 0, 0, 0, 0, 0, 0]
-    for (const s of d.sessions) {
+    for (const s of sess.sessions) {
       if (!s.started_at) continue
       const daysAgo = Math.floor((now - s.started_at) / 86400)
       if (daysAgo >= 0 && daysAgo < 7) pts[6 - daysAgo]++

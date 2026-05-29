@@ -1,46 +1,24 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { useSnapshotStore } from './snapshotStore.js'
 
-/**
- * Kanban store — boards, columns, tasks, and task modal state.
- * Derives from snapshot.data.kanban.
- */
 export const useKanbanStore = defineStore('kanban', () => {
-  const snap = useSnapshotStore()
+  const data = ref(null)
+  const activeBoardName = ref(null)
+  const selectedTask = ref(null)
 
-  /** All boards keyed by name: { name, columns: {colName: [tasks]}, task_count } */
-  const boards = computed(() => snap.data?.kanban?.boards || {})
-
-  /** Sorted list of board names */
+  const boards = computed(() => data.value?.boards || {})
   const boardNames = computed(() => Object.keys(boards.value).sort())
 
-  /** User-selected board override (null = use default) */
-  const activeBoardName = ref(null)
-
-  /** Currently active board — explicit selection or snapshot default */
   const activeBoard = computed(() => {
     const name = activeBoardName.value
-      || snap.data?.kanban?.default_board
+      || data.value?.default_board
       || boardNames.value[0]
     return boards.value[name] || null
   })
 
-  /** Columns for the active board: { triage: [...], todo: [...], ... } */
   const columns = computed(() => activeBoard.value?.columns || {})
-
-  /** Flattened task list for the active board */
-  const tasks = computed(() =>
-    Object.values(columns.value).flat()
-  )
-
-  /** Total task count for the active board */
+  const tasks = computed(() => Object.values(columns.value).flat())
   const taskCount = computed(() => activeBoard.value?.task_count || 0)
-
-  // ── Task modal ──────────────────────────────────────────
-
-  /** Currently selected task for the detail modal (null = closed) */
-  const selectedTask = ref(null)
 
   function selectTask(task) {
     selectedTask.value = task
@@ -50,29 +28,31 @@ export const useKanbanStore = defineStore('kanban', () => {
     selectedTask.value = null
   }
 
-  // ── Board switching ────────────────────────────────────
-
   function setActiveBoard(name) {
     activeBoardName.value = name
   }
 
-  /** Get tasks for a specific column in the active board */
   function tasksForColumn(colName) {
     return columns.value[colName] || []
   }
 
+  function patch(newData) {
+    data.value = newData
+  }
+
+  async function fetchLatest() {
+    try {
+      const r = await fetch('/api/v2/kanban')
+      if (r.ok) data.value = await r.json()
+    } catch (e) {
+      console.warn('fetch /api/v2/kanban failed:', e)
+    }
+  }
+
   return {
-    boards,
-    boardNames,
-    activeBoard,
-    activeBoardName,
-    columns,
-    tasks,
-    taskCount,
-    selectedTask,
-    selectTask,
-    clearTask,
-    setActiveBoard,
-    tasksForColumn,
+    data, boards, boardNames, activeBoard, activeBoardName,
+    columns, tasks, taskCount, selectedTask,
+    selectTask, clearTask, setActiveBoard, tasksForColumn,
+    patch, fetchLatest,
   }
 })

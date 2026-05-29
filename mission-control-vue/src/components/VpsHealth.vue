@@ -30,24 +30,13 @@
 
 <script setup>
 import { computed } from 'vue'
-import { useSnapshotStore } from '../stores/snapshotStore.js'
+import { useVpsStore } from '../stores/vps.js'
 
-const snap = useSnapshotStore()
+const vps = useVpsStore()
 
 const hosts = computed(() => {
-  const d = snap.data
-  // Before ANY data arrives: both hosts loading
-  if (!d || Object.keys(d).length === 0) {
-    return [
-      { key: 'hermes', label: 'HERMES VPS', data: null, loading: true },
-      { key: 'prod', label: 'PRODUCTION', data: null, loading: true },
-    ]
-  }
-
-  const vps = d.vps || {}
   const result = []
 
-  // Hermes — always configured (local /proc)
   const hermes = vps.hermes
   if (hermes && (hermes.cpu_pct != null || (hermes.mem && hermes.mem.mem_pct != null))) {
     result.push({
@@ -61,11 +50,10 @@ const hosts = computed(() => {
   } else {
     result.push({
       key: 'hermes', label: 'HERMES VPS', data: null,
-      loading: true,  // waiting for hermes-health channel
+      loading: true,
     })
   }
 
-  // Prod — only configured if it appears with real data
   const prod = vps.prod
   if (prod && (prod.cpu_pct != null || (prod.mem && prod.mem.mem_pct != null) || prod.ssh_ok !== undefined)) {
     result.push({
@@ -77,10 +65,8 @@ const hosts = computed(() => {
       },
     })
   } else if (prod && Object.keys(prod).length === 0) {
-    // Empty prod object — not configured, no prod in servers.json
     result.push({ key: 'prod', label: 'PRODUCTION', data: null, loading: false })
   } else {
-    // No prod data yet — either not configured or still loading
     result.push({ key: 'prod', label: 'PRODUCTION', data: null, loading: true })
   }
 

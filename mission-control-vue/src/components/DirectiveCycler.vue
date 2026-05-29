@@ -9,26 +9,25 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useSnapshotStore } from '../stores/snapshotStore.js'
+import { useGatewayStore } from '../stores/gateway.js'
+import { useProfilesStore } from '../stores/profiles.js'
+import { useKanbanStore } from '../stores/kanban.js'
 
-const snap = useSnapshotStore()
+const gw = useGatewayStore()
+const prof = useProfilesStore()
+const kan = useKanbanStore()
 const current = ref('INITIALIZING')
 
 const directives = computed(() => {
-  const d = snap.data
-  if (!d) return ['NO DATA']
   const lines = []
-  const profiles = d.profiles || []
+  const profiles = prof.data || []
   if (profiles.length) lines.push('MONITORING ' + profiles.length + ' PROFILES')
-  const gw = d.gateway || {}
-  if (gw.gateway_state === 'running') lines.push('GATEWAY ONLINE — ' + (gw.active_agents || 0) + ' AGENTS')
-  const kanban = d.kanban?.boards || {}
+  const gd = gw.data || {}
+  if (gd.gateway_state === 'running') lines.push('GATEWAY ONLINE — ' + (gd.active_agents || 0) + ' AGENTS')
+  const boards = kan.data?.boards || {}
   let blocked = 0
-  for (const b of Object.values(kanban)) blocked += (b.columns?.blocked || []).length
+  for (const b of Object.values(boards)) blocked += (b.columns?.blocked || []).length
   if (blocked) lines.push(blocked + ' BLOCKED TASKS ACTIVE')
-  const errors = d.errors || []
-  if (errors.length) lines.push(errors.length + ' DATA SOURCE ERRORS')
-  if (d.timestamp_iso) lines.push('LAST SNAPSHOT: ' + d.timestamp_iso.replace('T', ' ').slice(0, 19))
   return lines.length ? lines : ['SYSTEM NOMINAL']
 })
 
