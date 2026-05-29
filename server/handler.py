@@ -14,11 +14,22 @@ from server.readers import _read_servers_config, read_json
 from server.content import list_content, read_content, save_content
 from server.glance import _get_glance_data
 from server.snapshot import _CHANNEL_COLLECTORS
+from server.collectors import (
+    collect_gateway, collect_processes, collect_hermes_health,
+    collect_sessions_ledger, collect_profiles, collect_sessions,
+    collect_kanban, collect_prod_health, collect_dokku,
+    collect_server_crons, collect_servers,
+)
+from server.work_servers import (
+    collect_work_system_health, collect_work_docker,
+    collect_work_nexus, collect_work_jenkins, collect_work_postgres,
+)
 # =============================================================================
 # HTTP Handlers
 # =============================================================================
 
-_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dist")
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_DIST_DIR = os.path.join(_ROOT, "dist")
 _INDEX_PATH = os.path.join(_DIST_DIR, "index.html")
 
 

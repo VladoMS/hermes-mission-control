@@ -5,7 +5,7 @@ import subprocess
 import threading
 import time
 from server.config import PROD_CACHE_TTL
-from server.readers import _read_servers_config
+from server.readers import _read_servers_config, _prod_lock, _prod_cache, _prod_errors_cache
 # =============================================================================
 # VPS Health Collectors
 # =============================================================================

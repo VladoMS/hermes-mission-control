@@ -2,7 +2,7 @@
 
 import os
 from server.config import HERMES_HOME
-from server.readers import read_sqlite_ro
+from server.readers import read_sqlite_ro, read_json
 # =============================================================================
 # Unified Sessions — cross-profile session list + token ledger
 # =============================================================================

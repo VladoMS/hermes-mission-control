@@ -6,6 +6,9 @@ import subprocess
 import sys
 import threading
 
+# Ensure the project root is on the Python path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from server.config import (
     HOST, PORT, CERT_DIR, CERT_FILE, KEY_FILE, DASHBOARD_DB,
     _SSE_QUEUE, _CHANNEL_REGISTRY

@@ -3,7 +3,7 @@
 import os
 import json
 from server.config import HERMES_HOME
-from server.readers import read_json
+from server.readers import read_json, _read_servers_config
 from server.health import get_hermes_health, get_prod_health
 from server.profiles import build_profiles
 from server.sessions import build_unified_sessions, build_sessions_ledger

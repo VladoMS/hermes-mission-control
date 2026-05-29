@@ -2,7 +2,7 @@
 
 import os
 from server.config import HERMES_HOME
-from server.readers import read_profile_yaml, read_config_yaml, get_state_db_stats
+from server.readers import read_json, read_profile_yaml, read_config_yaml, get_state_db_stats
 # =============================================================================
 # Profile builder
 # =============================================================================
