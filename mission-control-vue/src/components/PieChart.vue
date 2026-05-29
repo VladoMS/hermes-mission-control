@@ -46,7 +46,7 @@ function draw() {
   const entries = legend.value
   const grandTotal = entries.reduce((s, e) => s + e.tokens, 0)
   if (grandTotal === 0) {
-    ctx.fillStyle = 'var(--text-faint)'
+    ctx.fillStyle = '#586573'
     ctx.font = '10px "JetBrains Mono"'
     ctx.textAlign = 'center'
     ctx.fillText('NO DATA', cx, cy)
@@ -56,6 +56,7 @@ function draw() {
   let angle = -Math.PI / 2
   for (let i = 0; i < entries.length; i++) {
     const slice = (entries[i].tokens / grandTotal) * Math.PI * 2
+    const pct = Math.round((entries[i].tokens / grandTotal) * 100)
     ctx.beginPath()
     ctx.moveTo(cx, cy)
     ctx.arc(cx, cy, r, angle, angle + slice)
@@ -65,13 +66,26 @@ function draw() {
     ctx.strokeStyle = 'rgba(0,0,0,0.3)'
     ctx.lineWidth = 1
     ctx.stroke()
+
+    // Percentage label
+    if (pct >= 5) {
+      const midAngle = angle + slice / 2
+      const labelR = r * 0.6
+      const lx = cx + labelR * Math.cos(midAngle)
+      const ly = cy + labelR * Math.sin(midAngle)
+      ctx.fillStyle = '#05080b'
+      ctx.font = 'bold 9px "JetBrains Mono"'
+      ctx.textAlign = 'center'
+      ctx.textBaseline = 'middle'
+      ctx.fillText(pct + '%', lx, ly)
+    }
     angle += slice
   }
 
   // Center dot
   ctx.beginPath()
   ctx.arc(cx, cy, 16, 0, Math.PI * 2)
-  ctx.fillStyle = 'var(--bg-void)'
+  ctx.fillStyle = '#05080b'
   ctx.fill()
 }
 

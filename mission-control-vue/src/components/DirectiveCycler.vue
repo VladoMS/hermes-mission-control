@@ -1,7 +1,9 @@
 <template>
   <div class="directive-bar">
     <span class="directive-icon">◆</span>
-    <span class="directive-text">{{ current }}</span>
+    <Transition name="directive-fade" mode="out-in">
+      <span class="directive-text" :key="current">{{ current }}</span>
+    </Transition>
   </div>
 </template>
 
@@ -66,6 +68,14 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
   flex-shrink: 0;
 }
 .directive-text {
-  transition: opacity 0.4s;
+  white-space: nowrap;
+}
+.directive-fade-enter-active,
+.directive-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.directive-fade-enter-from,
+.directive-fade-leave-to {
+  opacity: 0;
 }
 </style>

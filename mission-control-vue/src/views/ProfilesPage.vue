@@ -45,7 +45,21 @@ const filteredProfiles = computed(() => {
 <style scoped>
 .profiles-page { position: relative; z-index: 5; }
 .filter-chips { display: flex; gap: 6px; }
-.filter-chips .chip { cursor: pointer; }
+.filter-chips .chip {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.filter-chips .chip.red,
+.filter-chips .chip.green,
+.filter-chips .chip.amber,
+.filter-chips .chip.cyan {
+  font-weight: 600;
+  color: var(--text-hi);
+}
+.filter-chips .chip.red { background: rgba(255,59,31,0.15); }
+.filter-chips .chip.green { background: rgba(74,222,128,0.15); }
+.filter-chips .chip.amber { background: rgba(255,176,32,0.15); }
+.filter-chips .chip.cyan { background: rgba(30,200,255,0.15); }
 .profiles-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));

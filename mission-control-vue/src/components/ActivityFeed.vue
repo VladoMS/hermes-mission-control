@@ -48,6 +48,7 @@ function rebuild() {
   const recent = [...sessions].sort((a, b) => (b.started_at || 0) - (a.started_at || 0)).slice(0, 6)
   for (const s of recent) {
     result.push({
+      _ts: s.started_at || 0,
       time: ago(s.started_at),
       color: PROFILE_COLORS[s.profile] || '#6b7585',
       text: (s.display_name || s.title || s.id || 'session') + ' · ' + (s.profile || 'unknown'),
@@ -60,9 +61,11 @@ function rebuild() {
     const cols = board.columns || {}
     for (const colName of ['in_progress', 'done']) {
       for (const task of (cols[colName] || []).slice(0, 3)) {
+        const ts = task.completed_at || task.started_at || task.created_at || 0
         const status = colName === 'done' ? 'completed' : 'in progress'
         result.push({
-          time: ago(task.completed_at || task.started_at || task.created_at),
+          _ts: ts,
+          time: ago(ts),
           color: colName === 'done' ? '#4ade80' : '#ffb020',
           text: status + ': ' + (task.title || task.id) + ' [' + bname + ']',
         })
@@ -70,12 +73,8 @@ function rebuild() {
     }
   }
 
-  // Sort and deduplicate
-  result.sort((a, b) => {
-    const ta = a.time === '' ? Infinity : parseInt(a.time)
-    const tb = b.time === '' ? Infinity : parseInt(b.time)
-    return ta - tb
-  })
+  // Sort by actual Unix timestamp (descending = most recent first)
+  result.sort((a, b) => (b._ts || 0) - (a._ts || 0))
   items.value = result.slice(0, 12)
 }
 

@@ -199,14 +199,14 @@ function barStyle(v) {
   color: var(--text-hi);
   flex: 1;
 }
-.app-containers { font-size: 9px; color: var(--text-faint); }
+.app-containers { font-size: 10px; color: var(--text-faint); }
 .app-containers-list { margin-bottom: 8px; }
 .ctr-row {
   padding: 4px 0;
   border-bottom: 1px solid rgba(255,255,255,0.03);
 }
-.ctr-name { font-size: 9px; color: var(--text-dim); margin-bottom: 2px; }
-.ctr-status { font-size: 8px; margin-left: 4px; }
+.ctr-name { font-size: 10px; color: var(--text-dim); margin-bottom: 2px; }
+.ctr-status { font-size: 10px; margin-left: 4px; }
 .ctr-status.up { color: var(--green); }
 .ctr-status.down { color: var(--red); }
 
@@ -219,9 +219,9 @@ function barStyle(v) {
 }
 .ctr-bar-label {
   font-family: var(--font-mono);
-  font-size: 7px;
+  font-size: 10px;
   color: var(--text-faint);
-  width: 18px;
+  width: 22px;
 }
 .ctr-bar {
   flex: 1;
@@ -237,8 +237,8 @@ function barStyle(v) {
 }
 .ctr-bar-pct {
   font-family: var(--font-mono);
-  font-size: 7px;
-  width: 22px;
+  font-size: 10px;
+  width: 28px;
   text-align: right;
 }
 

@@ -140,7 +140,7 @@ const dokkuAppCount = computed(() => props.server.dokku?.apps?.length || 0)
   user-select: none;
 }
 .srv-section-head:hover { color: var(--text); }
-.srv-section-arrow { font-size: 7px; transition: transform 0.2s; }
+.srv-section-arrow { font-size: 11px; transition: transform 0.2s; }
 .srv-section-head.open .srv-section-arrow { transform: rotate(90deg); }
 .srv-section-body { display: none; padding: 10px 0; }
 .srv-section-body.open { display: block; }

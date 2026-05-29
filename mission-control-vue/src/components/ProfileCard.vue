@@ -1,7 +1,7 @@
 <template>
   <div class="profile-card panel" :class="{ 'panel-glow': profile.status === 'active' }">
     <div class="card-top">
-      <span class="prof-dot" :style="{ background: accent, boxShadow: '0 0 8px ' + accent }"></span>
+      <span class="prof-dot" :style="{ background: statusColor, boxShadow: '0 0 8px ' + statusColor }"></span>
       <span class="prof-name">{{ profile.name }}</span>
       <span class="prof-badge chip" :style="{ borderLeftColor: accent, color: accent, background: accent + '20' }">{{ badge }}</span>
     </div>
@@ -62,11 +62,11 @@ function ago(ts) {
 const stats = computed(() => {
   const s = props.profile.state_db_stats || {}
   const recent = s.recent_sessions || []
-  const lastTs = recent.length ? recent[0] : null
+  const lastTs = recent.length ? recent[0].started_at : null
   return {
     sessionCount: s.session_count || 0,
     messageCount: s.message_count || 0,
-    tokenCount: fmtTokens(s.total_tokens),
+    tokenCount: fmtTokens((s.total_input_tokens || 0) + (s.total_output_tokens || 0)),
     lastActive: ago(lastTs),
   }
 })
@@ -112,7 +112,7 @@ const statusColor = computed(() => {
 }
 .cs-label {
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 10px;
   color: var(--text-faint);
   text-transform: uppercase;
   letter-spacing: 0.1em;

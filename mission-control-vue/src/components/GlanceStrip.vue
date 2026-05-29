@@ -1,5 +1,14 @@
 <template>
-  <div class="glance-strip panel">
+  <div class="glance-strip panel" :class="{ collapsed: isCollapsed }">
+    <!-- Collapsed summary bar -->
+    <div v-if="isCollapsed" class="glance-summary" @click="isCollapsed = false">
+      <span class="glance-summary-time">{{ fmtTime('Europe/Sofia') }} SOFIA</span>
+      <span class="glance-summary-weather" v-if="weather.temperature != null">{{ weather.temperature }}°C {{ weather.weather_label }}</span>
+      <span class="glance-summary-hint mono">EXPAND</span>
+    </div>
+
+    <!-- Expanded content -->
+    <template v-else>
     <!-- SECTION: World Clock -->
     <div class="glance-section clock-section">
       <div class="section-eyebrow">◆ WORLD CLOCK</div>
@@ -63,6 +72,12 @@
         <div v-if="liveChannels.length === 0" class="twitch-empty">All channels offline</div>
       </div>
     </div>
+
+    <!-- Collapse button -->
+    <button class="glance-collapse-btn" @click="isCollapsed = true" title="Collapse">
+      <span class="collapse-arrow">▲</span>
+    </button>
+    </template>
   </div>
 </template>
 
@@ -70,6 +85,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 // --- Reactive state ---
+const isCollapsed = ref(true)
 const timezones = ref([
   ['Europe/Sofia', 'Sofia'],
   ['UTC', 'UTC'],
@@ -169,6 +185,10 @@ onUnmounted(() => {
   padding: 14px 18px;
   margin-bottom: 28px;
   gap: 0;
+  position: relative;
+}
+.glance-strip.collapsed {
+  padding: 8px 18px;
 }
 .glance-section {
   flex: 1;
@@ -179,6 +199,47 @@ onUnmounted(() => {
   background: var(--line);
   margin: 0 18px;
   align-self: stretch;
+}
+
+/* --- Collapsed summary --- */
+.glance-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  user-select: none;
+}
+.glance-summary:hover { color: var(--text); }
+.glance-summary-time { color: var(--cyan); font-weight: 600; }
+.glance-summary-weather { color: var(--amber); }
+.glance-summary-hint {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--text-faint);
+  letter-spacing: 0.12em;
+}
+
+/* --- Collapse button --- */
+.glance-collapse-btn {
+  position: absolute;
+  top: 4px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  opacity: 0.4;
+  transition: opacity 0.2s;
+}
+.glance-collapse-btn:hover { opacity: 1; }
+.collapse-arrow {
+  font-size: 8px;
+  color: var(--text-dim);
 }
 
 /* --- Eyebrow --- */

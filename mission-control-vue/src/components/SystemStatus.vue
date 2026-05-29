@@ -15,7 +15,7 @@
         <div class="ctx-stat-val" :class="stats.errors > 0 ? 'bad' : 'good'">{{ stats.errors }}</div>
       </div>
       <div class="ctx-stat">
-        <div class="ctx-label">Tokens Today</div>
+        <div class="ctx-label">Total Tokens</div>
         <div class="ctx-stat-val">{{ stats.tokensToday }}</div>
       </div>
     </div>

@@ -84,6 +84,14 @@ const columns = computed(() => {
   grid-template-columns: repeat(7, 1fr);
   gap: 8px;
   overflow-x: auto;
+  background:
+    linear-gradient(to right, var(--bg-void), transparent 30px),
+    linear-gradient(to left, var(--bg-void), transparent 30px) right center,
+    radial-gradient(farthest-side at 0% 50%, rgba(0,0,0,0.4), transparent),
+    radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,0.4), transparent) right center;
+  background-repeat: no-repeat;
+  background-size: 40px 100%, 40px 100%, 14px 100%, 14px 100%;
+  background-attachment: local, local, scroll, scroll;
 }
 .board-col {
   background: var(--bg-deep);

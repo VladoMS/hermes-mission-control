@@ -102,8 +102,8 @@ const activities = computed(() => {
   border-bottom: 1px solid var(--line);
 }
 .log-table td {
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-body);
+  font-size: 11px;
   color: var(--text-dim);
   padding: 5px 8px;
   border-bottom: 1px solid var(--line-dim);

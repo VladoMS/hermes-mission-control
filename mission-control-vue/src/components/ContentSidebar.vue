@@ -112,14 +112,14 @@ onMounted(() => { contentStore.fetchDocuments() })
   user-select: none;
 }
 .sb-agent:hover { color: var(--text-hi); }
-.sb-arrow { font-size: 7px; color: var(--text-faint); transition: transform 0.2s; }
+.sb-arrow { font-size: 9px; color: var(--text-faint); transition: transform 0.2s; }
 .sb-arrow.open { transform: rotate(90deg); }
 .sb-agent-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .sb-agent-name { flex: 1; text-transform: uppercase; }
 .sb-count { color: var(--text-faint); font-size: 10px; }
 
 /* Month level */
-.sb-months { padding-left: 14px; }
+.sb-months { padding-left: 20px; }
 .sb-month-group { margin-top: 1px; }
 .sb-month {
   display: flex;
@@ -136,7 +136,7 @@ onMounted(() => { contentStore.fetchDocuments() })
 .sb-month:hover { color: var(--text); }
 .sb-month-text { flex: 1; }
 
-.sb-docs { padding-left: 16px; }
+.sb-docs { padding-left: 20px; }
 .sb-doc {
   padding: 5px 8px;
   cursor: pointer;

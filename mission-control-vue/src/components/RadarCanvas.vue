@@ -91,10 +91,10 @@ function draw() {
     ctx.arc(px, py, 3, 0, Math.PI * 2)
     ctx.fillStyle = share > 0.3 ? '#ff3b1f' : share > 0.1 ? '#ffb020' : '#1ec8ff'
     ctx.fill()
-    ctx.fillStyle = 'rgba(255,255,255,0.4)'
-    ctx.font = '7px "JetBrains Mono"'
+    ctx.fillStyle = 'rgba(255,255,255,0.55)'
+    ctx.font = '9px "JetBrains Mono"'
     ctx.textAlign = 'center'
-    ctx.fillText((profiles[i].name || '').slice(0, 4), px, py - 7)
+    ctx.fillText((profiles[i].name || '').slice(0, 4), px, py - 9)
   }
 
   // Sweep

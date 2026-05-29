@@ -1,5 +1,6 @@
 import { ref, onMounted } from 'vue'
 import { useSnapshotStore } from '../stores/snapshotStore.js'
+import { useWorkServersStore } from '../stores/workServers.js'
 
 const uplink = ref('disconnected')
 const sseActive = ref(false)
@@ -16,6 +17,12 @@ const CHANNELS = {
   'dokku':            { key: 'dokku',            interval: 60000 },
   'server-crons':     { key: 'server_crons',     interval: 300000 },
   'servers':          { key: 'servers',          interval: 60000 },
+  // Work servers
+  'work-system':      { key: 'work-system',      interval: 900000 },
+  'work-docker':      { key: 'work-docker',      interval: 1800000 },
+  'work-nexus':       { key: 'work-nexus',       interval: 1800000 },
+  'work-jenkins':     { key: 'work-jenkins',     interval: 1800000 },
+  'work-postgres':    { key: 'work-postgres',    interval: 1800000 },
 }
 
 // ── Module-level singleton state ────────────────────────────────────────
@@ -48,6 +55,13 @@ export function useSSE() {
   }
 
   function _applyChannel(channelName, rawData) {
+    // Work server channels go to their own store
+    if (channelName.startsWith('work-')) {
+      const wsStore = useWorkServersStore()
+      wsStore.patch(channelName, rawData)
+      return
+    }
+
     const config = CHANNELS[channelName]
     if (!config) return
 

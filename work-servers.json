@@ -1,0 +1,58 @@
+{
+  "servers": [
+    {
+      "name": "nexus",
+      "ansible_group": "nexus",
+      "ip": "192.168.5.45",
+      "roles": ["system", "nexus"],
+      "nexus_url": "http://192.168.5.45:8081"
+    },
+    {
+      "name": "docker-sandbox",
+      "ansible_group": "dockersandbox",
+      "roles": ["system", "docker", "jenkins_old"],
+      "jenkins_url": "http://docker-sandbox:8080"
+    },
+    {
+      "name": "builderlinux1",
+      "ansible_group": "builders",
+      "ip": "192.168.5.50",
+      "roles": ["system", "jenkins_new"],
+      "jenkins_url": "http://192.168.5.50:8080"
+    },
+    {
+      "name": "dsp-cluster",
+      "ansible_group": "dspmanagers",
+      "roles": ["system", "docker_swarm"],
+      "hosts": ["dsp1", "dsp2", "dsp3", "dsp4"]
+    },
+    {
+      "name": "postgres-prod",
+      "ansible_group": "postgres_prod",
+      "roles": ["system", "postgres", "patroni", "etcd"],
+      "hosts": ["postgres-prod1", "postgres-prod2", "postgres-witness"],
+      "patroni_port": 8008,
+      "etcd_port": 2379
+    },
+    {
+      "name": "postgres-sandbox",
+      "ansible_group": "postgres_sandbox",
+      "ip": "192.168.5.49",
+      "roles": ["system", "postgres"]
+    }
+  ],
+  "collection": {
+    "work_laptop": "100.64.203.21",
+    "work_laptop_user": "root",
+    "scripts_dir": "/workspace/hermes/scripts/work-servers",
+    "intervals": {
+      "system": 900,
+      "docker": 1800,
+      "nexus": 1800,
+      "jenkins": 1800,
+      "postgres": 1800,
+      "patroni": 1800,
+      "etcd": 1800
+    }
+  }
+}

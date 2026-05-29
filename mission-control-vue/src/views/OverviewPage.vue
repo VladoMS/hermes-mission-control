@@ -184,7 +184,7 @@ const ops = computed(() => {
 }
 @media (max-width: 480px) {
   .ops-grid { grid-template-columns: repeat(2, 1fr); }
-  .ops-label { font-size: 8px; }
+  .ops-label { font-size: 10px; }
   .ops-val { font-size: 14px; }
 }
 @media (max-width: 360px) {

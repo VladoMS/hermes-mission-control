@@ -75,6 +75,7 @@ const tabs = [
   { id: 'servers', label: 'Servers', path: '/servers' },
   { id: 'sessions', label: 'Sessions', path: '/sessions' },
   { id: 'content', label: 'Content', path: '/content' },
+  { id: 'work-servers', label: 'Work', path: '/work-servers' },
 ]
 
 function isActive(tabId) {
@@ -188,9 +189,9 @@ onUnmounted(() => {
 }
 
 .tab.active {
-  color: var(--bg-void);
-  background: var(--text-hi);
-  border-color: var(--text-hi);
+  color: var(--cyan);
+  background: rgba(30, 200, 255, 0.1);
+  border-color: rgba(30, 200, 255, 0.3);
   font-weight: 600;
 }
 

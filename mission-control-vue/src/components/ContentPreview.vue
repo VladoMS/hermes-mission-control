@@ -299,12 +299,10 @@ function cancelEdit() {
 }
 .preview-content :deep(table) {
   border-collapse: collapse;
-  width: 100%;
+  max-width: 100%;
+  table-layout: auto;
   margin: 10px 0;
   font-size: 12px;
-  display: block;
-  overflow-x: auto;
-  max-width: 100%;
 }
 .preview-content :deep(th) {
   text-align: left;

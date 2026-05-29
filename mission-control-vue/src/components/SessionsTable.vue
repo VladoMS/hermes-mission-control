@@ -42,12 +42,12 @@
             </td>
             <td class="col-msgs"><span class="sess-msgs">{{ s.message_count || 0 }}</span></td>
             <td class="col-tokens">
-              <span class="sess-tokens">
-                <span class="tk-in">{{ fmtTokens(s.input_tokens) }}</span>
+              <span class="sess-tokens" title="Input / Output / Cache tokens">
+                <span class="tk-in" title="Input tokens">{{ fmtTokens(s.input_tokens) }}</span>
                 <span class="tk-sep">/</span>
-                <span class="tk-out">{{ fmtTokens(s.output_tokens) }}</span>
+                <span class="tk-out" title="Output tokens">{{ fmtTokens(s.output_tokens) }}</span>
                 <span class="tk-sep">/</span>
-                <span class="tk-cache">{{ fmtTokens((s.cache_read_tokens || 0) + (s.cache_write_tokens || 0)) }}</span>
+                <span class="tk-cache" title="Cache read+write tokens">{{ fmtTokens((s.cache_read_tokens || 0) + (s.cache_write_tokens || 0)) }}</span>
               </span>
             </td>
             <td class="col-date">

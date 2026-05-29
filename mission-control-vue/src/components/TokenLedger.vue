@@ -11,7 +11,7 @@
         <div class="ledger-val">{{ fmtCost(ledger.total_estimated_cost_usd) }}</div>
       </div>
       <div class="ledger-cell">
-        <div class="ledger-label">Sessions</div>
+        <div class="ledger-label">Total Sessions</div>
         <div class="ledger-val">{{ ledger.session_count || 0 }}</div>
       </div>
       <div class="ledger-cell">
