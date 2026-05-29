@@ -11,7 +11,7 @@ from server.readers import read_json
 # Work Servers — data collection from work-laptop over Tailscale
 # =============================================================================
 
-_WORK_LAPTOP = "root@100.64.203.21"
+_WORK_LAPTOP = "work-laptop"
 _WORK_SCRIPTS = "/workspace/hermes/scripts/work-servers"
 _WORK_ANSIBLE_DIR = "/workspace/Git/DevOps-Main"
 _work_servers_config = None

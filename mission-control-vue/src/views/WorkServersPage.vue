@@ -41,7 +41,8 @@
       <div class="placeholder-panel" style="color: var(--text-dim)">No work server data yet — first collection runs on 15-minute intervals.</div>
     </div>
 
-    <div class="servers-grid"><div v-for="srv in servers" :key="srv.key" class="server-card panel" @click="openDetails(srv)">
+    <div class="servers-grid"><div v-for="srv in servers" :key="srv.key" class="server-card-wrapper" :class="cardBorderClass(srv)">
+    <div class="server-card panel" @click="openDetails(srv)">
       <!-- Header -->
       <div class="card-header">
         <span class="status-dot" :class="healthClass(srv.health)"></span>
@@ -63,6 +64,7 @@
       <div class="card-footer">
         <span class="details-btn mono">▶ DETAILS</span>
       </div>
+    </div>
     </div>
     </div>
   </div>
@@ -356,6 +358,14 @@ const lastUpdate = computed(() => {
   return Math.floor(diff / 86400) + 'd ago'
 })
 
+function cardBorderClass(srv) {
+  const h = srv.health || {}
+  if (!h || h.cpu_pct === undefined) return ''
+  if (h.cpu_pct > 90 || (h.memory?.pct || 0) > 95) return 'border-critical'
+  if (h.cpu_pct > 70 || (h.memory?.pct || 0) > 85) return 'border-warning'
+  return ''
+}
+
 function healthClass(h) {
   if (!h || h.cpu_pct === undefined) return ''
   if (h.cpu_pct > 90 || (h.memory?.pct || 0) > 95) return 'red'
@@ -427,9 +437,24 @@ function fmtVersion(v) {
 }
 
 /* Server card */
+.server-card-wrapper { margin-bottom: 20px; }
+.server-card-wrapper.border-warning {
+  border-left: 3px solid var(--amber);
+  padding-left: 0;
+}
+.server-card-wrapper.border-warning .server-card {
+  background: rgba(255, 176, 32, 0.04);
+}
+.server-card-wrapper.border-critical {
+  border-left: 3px solid var(--red);
+  padding-left: 0;
+}
+.server-card-wrapper.border-critical .server-card {
+  background: rgba(255, 59, 31, 0.04);
+}
+
 .server-card {
   padding: 18px;
-  margin-bottom: 20px;
   cursor: pointer;
   transition: border-color 0.15s;
 }

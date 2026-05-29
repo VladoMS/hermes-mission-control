@@ -30,6 +30,45 @@ from server.content import list_content, read_content, save_content, list_vault,
 from server.glance import _get_glance_data
 from server.readers import _read_servers_config
 
+# Work server repo fields: model fields to parse as JSON, mapped to output keys
+_WORK_SERVER_JSON_FIELDS = {
+    "work-system":   {"health_json": "health"},
+    "work-docker":   {"docker_json": "docker"},
+    "work-nexus":    {"nexus_json": "nexus"},
+    "work-jenkins":  {"jenkins_json": "jenkins"},
+    "work-postgres": {"postgres_json": "postgres", "patroni_json": "patroni", "etcd_json": "etcd"},
+}
+
+
+def _reconstruct_work_servers(domain: str, items: list[dict]) -> dict:
+    """Reconstruct collector-format response from repo model data.
+
+    The collector returns ``{"servers": [...], "collected_at": ...}`` with
+    parsed JSON objects for health/docker/nexus/etc. The repo stores these
+    as JSON strings. This function reverses the encoding so the client sees
+    the same shape regardless of source.
+    """
+    json_fields = _WORK_SERVER_JSON_FIELDS.get(domain, {})
+    servers = []
+    latest_ts = 0
+    for item in items:
+        server = {}
+        for key, value in item.items():
+            if key in json_fields:
+                try:
+                    parsed = json.loads(value) if isinstance(value, str) else (value or {})
+                    server[json_fields[key]] = parsed
+                except (json.JSONDecodeError, TypeError):
+                    server[json_fields[key]] = {}
+            elif key == "collected_at":
+                if value and value > latest_ts:
+                    latest_ts = value
+            else:
+                server[key] = value
+        servers.append(server)
+    return {"servers": servers, "collected_at": latest_ts or time.time()}
+
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _DIST_DIR = os.path.join(_ROOT, "dist")
 _INDEX_PATH = os.path.join(_DIST_DIR, "index.html")
@@ -141,13 +180,22 @@ class MissionControlHandlerV2(http.server.BaseHTTPRequestHandler):
                 fresh = collector_fn()
                 self.__class__.enriched_cache[domain] = fresh
 
-        # Return from enriched cache if available
+        # Try enriched cache first. For work-* domains, only use cache if
+        # it actually contains server data — otherwise fall through to
+        # the DB for the last known good snapshot.
         cached = self.__class__.enriched_cache.get(domain)
         if cached is not None:
-            self._json_response(cached)
-            return
+            if domain.startswith("work-"):
+                servers = cached.get("servers") if isinstance(cached, dict) else None
+                if servers:
+                    self._json_response(cached)
+                    return
+            else:
+                self._json_response(cached)
+                return
 
-        # Fallback: repo model data (before first SSE push)
+        # Fallback: repo model data (before first SSE push, or when cache
+        # holds empty results from a failed collection).
         repo = self.repos.get(repo_key)
         if repo is None:
             self._json_error(HTTPStatus.NOT_FOUND, f"no repo for: {domain}")
@@ -158,7 +206,11 @@ class MissionControlHandlerV2(http.server.BaseHTTPRequestHandler):
                 item = repo.get_latest()
                 self._json_response(asdict(item) if item else {"data": None})
             else:
-                self._json_response([asdict(i) for i in repo.get_latest()])
+                items = [asdict(i) for i in repo.get_latest()]
+                if domain.startswith("work-"):
+                    self._json_response(_reconstruct_work_servers(domain, items))
+                else:
+                    self._json_response(items)
         except Exception as e:
             self._json_error(HTTPStatus.INTERNAL_SERVER_ERROR, str(e))
 
