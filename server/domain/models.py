@@ -991,6 +991,126 @@ class OpenRouterUsage:
 
 
 # =============================================================================
+# OpenRouter Activity (per-day per-model usage from Analytics API)
+# =============================================================================
+
+@dataclass
+class OpenRouterActivity:
+    collected_at: float
+    date: str
+    model: str
+    model_permaslug: str
+    endpoint_id: str
+    provider_name: str
+    usage: float
+    byok_usage_inference: float
+    requests: int
+    prompt_tokens: int
+    completion_tokens: int
+    reasoning_tokens: int
+    key_name: str = ""
+
+    COLUMNS = (
+        "collected_at", "date", "model", "model_permaslug", "endpoint_id",
+        "provider_name", "usage", "byok_usage_inference", "requests",
+        "prompt_tokens", "completion_tokens", "reasoning_tokens",
+        "key_name",
+    )
+
+    def to_row(self) -> tuple:
+        return (
+            self.collected_at, self.date, self.model, self.model_permaslug,
+            self.endpoint_id, self.provider_name, self.usage,
+            self.byok_usage_inference, self.requests,
+            self.prompt_tokens, self.completion_tokens, self.reasoning_tokens,
+            self.key_name,
+        )
+
+    @classmethod
+    def from_row(cls, row: tuple) -> OpenRouterActivity:
+        return cls(
+            collected_at=row[0], date=row[1], model=row[2],
+            model_permaslug=row[3], endpoint_id=row[4],
+            provider_name=row[5], usage=row[6],
+            byok_usage_inference=row[7], requests=row[8],
+            prompt_tokens=row[9], completion_tokens=row[10],
+            reasoning_tokens=row[11],
+            key_name=row[12] if len(row) > 12 else "",
+        )
+
+    @classmethod
+    def from_api_item(cls, item: dict, collected_at: float | None = None) -> OpenRouterActivity:
+        return cls(
+            collected_at=collected_at or time.time(),
+            date=item.get("date", ""),
+            model=item.get("model", ""),
+            model_permaslug=item.get("model_permaslug", ""),
+            endpoint_id=item.get("endpoint_id", ""),
+            provider_name=item.get("provider_name", ""),
+            usage=item.get("usage", 0.0),
+            byok_usage_inference=item.get("byok_usage_inference", 0.0),
+            requests=item.get("requests", 0),
+            prompt_tokens=item.get("prompt_tokens", 0),
+            completion_tokens=item.get("completion_tokens", 0),
+            reasoning_tokens=item.get("reasoning_tokens", 0),
+            key_name=item.get("key_name", ""),
+        )
+
+
+# =============================================================================
+# OpenRouter Key Listing (from GET /api/v1/keys)
+# =============================================================================
+
+@dataclass
+class OpenRouterKey:
+    collected_at: float
+    key_hash: str
+    key_name: str
+    label: str
+    usage: float
+    usage_daily: float
+    usage_weekly: float
+    usage_monthly: float
+    disabled: bool
+
+    COLUMNS = (
+        "collected_at", "key_hash", "key_name", "label",
+        "usage", "usage_daily", "usage_weekly", "usage_monthly",
+        "disabled",
+    )
+
+    def to_row(self) -> tuple:
+        return (
+            self.collected_at, self.key_hash, self.key_name, self.label,
+            self.usage, self.usage_daily, self.usage_weekly, self.usage_monthly,
+            int(self.disabled),
+        )
+
+    @classmethod
+    def from_row(cls, row: tuple) -> OpenRouterKey:
+        return cls(
+            collected_at=row[0], key_hash=row[1], key_name=row[2],
+            label=row[3], usage=row[4], usage_daily=row[5],
+            usage_weekly=row[6], usage_monthly=row[7],
+            disabled=bool(row[8]),
+        )
+
+    @classmethod
+    def from_api_dict(cls, d: dict, collected_at: float | None = None) -> OpenRouterKey:
+        return cls(
+            collected_at=collected_at or time.time(),
+            key_hash=d.get("hash", ""),
+            key_name=d.get("name", ""),
+            label=d.get("label", ""),
+            usage=d.get("usage", 0.0),
+            usage_daily=d.get("usage_daily", 0.0),
+            usage_weekly=d.get("usage_weekly", 0.0),
+            usage_monthly=d.get("usage_monthly", 0.0),
+            disabled=d.get("disabled", False),
+        )
+
+
+# =============================================================================
 # Daily Costs
 # =============================================================================
 

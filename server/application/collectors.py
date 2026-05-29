@@ -17,7 +17,11 @@ from server.config import HERMES_HOME
 from server.readers import read_json, _read_servers_config
 from server.health import get_hermes_health, get_prod_health
 from server.profiles import build_profiles
-from server.sessions import build_unified_sessions, build_sessions_ledger, build_daily_costs, _build_model_pricing_cache
+from server.sessions import (
+    build_unified_sessions, build_sessions_ledger, build_daily_costs,
+    build_daily_costs_from_activity, build_ledger_from_activity,
+    _build_model_pricing_cache,
+)
 from server.servers import build_servers, _get_dokku_data, _get_server_crons
 from server.kanban import read_kanban_boards
 from server.work_servers import (
@@ -35,6 +39,8 @@ from server.domain.repositories import (
     ProfileModelUsageRepository, SessionRepository,
     SessionLedgerRepository, LedgerBreakdownRepository,
     KanbanTaskRepository, OpenRouterUsageRepository,
+    OpenRouterActivityRepository,
+    OpenRouterKeyRepository,
     DailyCostRepository,
     WorkServerHealthRepository, WorkDockerRepository,
     WorkNexusRepository, WorkJenkinsRepository,
@@ -45,7 +51,7 @@ from server.domain.models import (
     ServerHealth, DokkuApp, Profile, ProfileStats,
     ProfileModelUsage, Session, SessionLedger,
     LedgerBreakdown, KanbanTask, OpenRouterUsage,
-    DailyCost,
+    OpenRouterActivity, OpenRouterKey, DailyCost,
     WorkServerHealth, WorkDocker, WorkNexus,
     WorkJenkins, WorkPostgres,
 )
@@ -107,6 +113,57 @@ def _fetch_openrouter_usage():
         "rate_limit_requests": rate.get("requests", -1),
         "rate_limit_interval": rate.get("interval", "10s"),
     }
+
+
+def _fetch_openrouter_activity(api_key_hash: str | None = None):
+    """Fetch per-day, per-model activity from OpenRouter Analytics API.
+
+    If api_key_hash is provided, filters results to that key only.
+    Returns a list of dicts with date, model, usage, prompt_tokens,
+    completion_tokens, reasoning_tokens, requests, etc.
+    Returns an empty list on error.
+    """
+    import urllib.request
+    import urllib.error
+    import re
+
+    mgmt_key = None
+    env_path = os.path.join(HERMES_HOME, ".env")
+    try:
+        with open(env_path, "r") as f:
+            for line in f:
+                m = re.match(r'^OPENROUTER_MANAGEMENT_KEY\s*=\s*(.+)$', line.strip())
+                if m:
+                    mgmt_key = m.group(1).strip().strip('"').strip("'")
+                    break
+    except Exception:
+        pass
+
+    if not mgmt_key:
+        return []
+
+    url = "https://openrouter.ai/api/v1/activity"
+    if api_key_hash:
+        url += f"?api_key_hash={api_key_hash}"
+
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"Authorization": f"Bearer {mgmt_key}"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        return []
+    except urllib.error.URLError as e:
+        return []
+    except json.JSONDecodeError:
+        return []
+    except Exception as e:
+        return []
+
+    data = body.get("data", []) if isinstance(body, dict) else []
+    return data
 
 
 # =============================================================================
@@ -276,17 +333,38 @@ class SessionLedgerCollector:
         self,
         ledger_repo: SessionLedgerRepository,
         breakdown_repo: LedgerBreakdownRepository,
+        activity_repo: OpenRouterActivityRepository | None = None,
     ):
         self.ledger_repo = ledger_repo
         self.breakdown_repo = breakdown_repo
+        self._activity_repo = activity_repo
 
     def collect(self) -> dict:
-        profiles = build_profiles([])
-        unified, total_count = build_unified_sessions(profiles, [])
-        pricing_cache = _build_model_pricing_cache(profiles)
-        ledger = build_sessions_ledger(unified, total_count, pricing_cache)
-        collected_at = time.time()
+        # Try cached OpenRouter activity data first
+        activity_data = None
+        if self._activity_repo:
+            cached = self._activity_repo.get_latest_batch()
+            if cached:
+                activity_data = [
+                    {
+                        "date": a.date, "model": a.model,
+                        "usage": a.usage, "prompt_tokens": a.prompt_tokens,
+                        "completion_tokens": a.completion_tokens,
+                        "reasoning_tokens": a.reasoning_tokens,
+                        "requests": a.requests,
+                    }
+                    for a in cached
+                ]
 
+        if activity_data:
+            ledger = build_ledger_from_activity(activity_data)
+        else:
+            profiles = build_profiles([])
+            unified, total_count = build_unified_sessions(profiles, [])
+            pricing_cache = _build_model_pricing_cache(profiles)
+            ledger = build_sessions_ledger(unified, total_count, pricing_cache)
+
+        collected_at = time.time()
         model = SessionLedger.from_ledger_dict(ledger, collected_at)
         self.ledger_repo.save(model)
 
@@ -449,24 +527,162 @@ class OpenRouterUsageCollector:
         return enriched
 
 
+def _fetch_openrouter_keys() -> list[dict]:
+    """Fetch key listing from OpenRouter Management API.
+
+    Returns a list of dicts with hash, name, label, usage, etc.
+    Returns empty list on error.
+    """
+    import urllib.request
+    import urllib.error
+    import re
+
+    mgmt_key = None
+    env_path = os.path.join(HERMES_HOME, ".env")
+    try:
+        with open(env_path, "r") as f:
+            for line in f:
+                m = re.match(r'^OPENROUTER_MANAGEMENT_KEY\s*=\s*(.+)$', line.strip())
+                if m:
+                    mgmt_key = m.group(1).strip().strip('"').strip("'")
+                    break
+    except Exception:
+        pass
+
+    if not mgmt_key:
+        return []
+
+    try:
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/keys",
+            headers={"Authorization": f"Bearer {mgmt_key}"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return []
+
+    keys = body.get("data", []) if isinstance(body, dict) else []
+    return keys
+
+
+# =============================================================================
+# OpenRouter Activity (cached per-day per-model data)
+# =============================================================================
+
+class OpenRouterActivityCollector:
+    def __init__(self, repo: OpenRouterActivityRepository):
+        self.repo = repo
+
+    def collect(self) -> list[dict]:
+        # Get key listing to know which keys to query
+        keys_raw = _fetch_openrouter_keys()
+        key_hash_to_name = {}
+        for k in keys_raw:
+            kh = k.get("hash")
+            if kh:
+                key_hash_to_name[kh] = k.get("name", kh)
+
+        # Query activity per key to get per-key breakdown
+        all_tagged = []
+        if key_hash_to_name:
+            for kh, kn in key_hash_to_name.items():
+                per_key = _fetch_openrouter_activity(api_key_hash=kh)
+                for item in per_key:
+                    item["key_name"] = kn
+                all_tagged.extend(per_key)
+        else:
+            # Fallback: query without filter
+            all_tagged = _fetch_openrouter_activity()
+
+        if not all_tagged:
+            return []
+        collected_at = time.time()
+        items = [OpenRouterActivity.from_api_item(item, collected_at) for item in all_tagged]
+        if items:
+            self.repo.save_many(items)
+        return all_tagged
+
+
+# =============================================================================
+# OpenRouter Keys (key listing from Management API)
+# =============================================================================
+
+class OpenRouterKeyCollector:
+    def __init__(self, repo: OpenRouterKeyRepository):
+        self.repo = repo
+
+    def collect(self) -> list[dict]:
+        raw = _fetch_openrouter_keys()
+        if not raw:
+            return []
+        collected_at = time.time()
+        items = [OpenRouterKey.from_api_dict(k, collected_at) for k in raw]
+        if items:
+            self.repo.save_many(items)
+        return raw
+
+
 # =============================================================================
 # Daily Costs
 # =============================================================================
 
 class DailyCostCollector:
-    def __init__(self, repo: DailyCostRepository, or_collector: OpenRouterUsageCollector | None = None):
+    def __init__(
+        self,
+        repo: DailyCostRepository,
+        or_collector: OpenRouterUsageCollector | None = None,
+        activity_repo: OpenRouterActivityRepository | None = None,
+        keys_repo: OpenRouterKeyRepository | None = None,
+    ):
         self.repo = repo
         self._or_collector = or_collector
+        self._activity_repo = activity_repo
+        self._keys_repo = keys_repo
 
     def collect(self) -> dict:
-        profiles = build_profiles([])
-        if self._or_collector:
-            or_raw = self._or_collector.collect()
-        else:
-            or_raw = _fetch_openrouter_usage()
-        result = build_daily_costs(profiles, [], openrouter_usage=or_raw)
-        collected_at = time.time()
+        # Try cached OpenRouter activity data first
+        activity_data = None
+        if self._activity_repo:
+            cached = self._activity_repo.get_latest_batch()
+            if cached:
+                activity_data = [
+                    {
+                        "date": a.date, "model": a.model,
+                        "usage": a.usage, "prompt_tokens": a.prompt_tokens,
+                        "completion_tokens": a.completion_tokens,
+                        "reasoning_tokens": a.reasoning_tokens,
+                        "requests": a.requests,
+                        "key_name": a.key_name,
+                    }
+                    for a in cached
+                ]
 
+        if activity_data:
+            result = build_daily_costs_from_activity(activity_data)
+        else:
+            # Fall back to state.db
+            profiles = build_profiles([])
+            or_raw = self._or_collector.collect() if self._or_collector else _fetch_openrouter_usage()
+            result = build_daily_costs(profiles, [], openrouter_usage=or_raw)
+
+        # Attach key listing to the response
+        if self._keys_repo:
+            cached_keys = self._keys_repo.get_latest()
+            if cached_keys:
+                result["keys"] = [
+                    {
+                        "key_name": k.key_name,
+                        "key_hash": k.key_hash,
+                        "usage": k.usage,
+                        "usage_daily": k.usage_daily,
+                        "usage_monthly": k.usage_monthly,
+                        "disabled": k.disabled,
+                    }
+                    for k in cached_keys
+                ]
+
+        collected_at = time.time()
         days = result.get("days", [])
         daily_avg = result.get("daily_average", 0.0)
         today_sofar = result.get("today_so_far", 0.0)

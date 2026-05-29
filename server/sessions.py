@@ -361,7 +361,7 @@ def build_daily_costs(profiles, errors_out, openrouter_usage=None):
             _process(state_path)
 
     if not daily:
-        return {"days": [], "daily_average": 0.0, "today_so_far": 0.0, "openrouter_daily": None}
+        return {"days": [], "daily_average": 0.0, "today_so_far": 0.0, "openrouter_daily": None, "by_key": {}}
 
     # Sort by date
     sorted_dates = sorted(daily.keys())
@@ -397,7 +397,7 @@ def build_daily_costs(profiles, errors_out, openrouter_usage=None):
     # Linear regression on last 14 days for prediction
     prediction_days = []
     if len(past_days) >= 3:
-        N = min(14, len(past_days))
+        N = min(30, len(past_days))
         recent = past_days[-N:]
         xs = list(range(N))
         ys = [daily[d] for d in recent]
@@ -411,9 +411,9 @@ def build_daily_costs(profiles, errors_out, openrouter_usage=None):
         if denom != 0:
             slope = (n * sum_xy - sum_x * sum_y) / denom
             intercept = (sum_y - slope * sum_x) / n
-            # Predict next 3 days starting AFTER the last actual day
+            # Predict next 30 days starting AFTER the last actual day
             last_actual = sorted_dates[-1]
-            for i in range(1, 4):
+            for i in range(1, 31):
                 pred_val = max(0.0, intercept + slope * (N + i - 1))
                 pred_date = _add_days(last_actual, i)
                 prediction_days.append({
@@ -429,6 +429,7 @@ def build_daily_costs(profiles, errors_out, openrouter_usage=None):
         "today_so_far": round(today_cost, 6),
         "openrouter_daily": round(or_daily, 6) if or_daily else None,
         "monthly_projection": round(today_cost * 30, 6),
+        "by_key": {},
     }
 
 
@@ -437,6 +438,204 @@ def _add_days(date_str, n):
     from datetime import datetime, timedelta
     dt = datetime.strptime(date_str, "%Y-%m-%d")
     return (dt + timedelta(days=n)).strftime("%Y-%m-%d")
+
+
+def _build_key_daily(activity_data: list[dict]) -> dict:
+    """Build per-key daily costs from activity data.
+
+    Returns {key_name: {daily: {date: cost}, past_dates: [...], past_costs: [...]}}
+    """
+    from collections import defaultdict
+
+    by_key = {}
+    key_order = []
+    for item in activity_data:
+        kn = item.get("key_name", "") or "unknown"
+        if kn not in by_key:
+            by_key[kn] = defaultdict(float)
+            key_order.append(kn)
+        date = item.get("date", "")
+        usage = item.get("usage", 0) or 0
+        if date:
+            by_key[kn][date] += usage
+
+    return by_key, key_order
+
+
+def _predict_for_key(by_date: dict) -> list[dict]:
+    """Linear regression prediction for a single key's daily costs."""
+    sorted_dates = sorted(by_date.keys())
+    today_str = time.strftime("%Y-%m-%d", time.gmtime())
+    past_dates = [d for d in sorted_dates if d != today_str]
+    past_costs = [by_date[d] for d in past_dates]
+
+    prediction_days = []
+    if len(past_dates) >= 3:
+        N = min(30, len(past_dates))
+        recent = past_dates[-N:]
+        xs = list(range(N))
+        ys = [by_date[d] for d in recent]
+
+        n = len(xs)
+        sum_x = sum(xs)
+        sum_y = sum(ys)
+        sum_xy = sum(x * y for x, y in zip(xs, ys))
+        sum_xx = sum(x * x for x in xs)
+        denom = n * sum_xx - sum_x * sum_x
+        if denom != 0:
+            slope = (n * sum_xy - sum_x * sum_y) / denom
+            intercept = (sum_y - slope * sum_x) / n
+            last_actual = sorted_dates[-1]
+            for i in range(1, 31):
+                pred_val = max(0.0, intercept + slope * (N + i - 1))
+                pred_date = _add_days(last_actual, i)
+                prediction_days.append({
+                    "date": pred_date,
+                    "cost": 0.0,
+                    "prediction": round(pred_val, 6),
+                })
+    return prediction_days
+
+
+def build_daily_costs_from_activity(activity_data: list[dict]) -> dict:
+    """Build daily costs dict from OpenRouter Analytics activity data.
+
+    activity_data is a list of per-endpoint items from the /activity API.
+    Groups by date and by key_name, sums usage, adds linear-regression
+    predictions per key. Returns combined totals plus per-key breakdown.
+    """
+    from collections import defaultdict
+
+    # Combined totals
+    daily = defaultdict(float)
+    by_key, key_order = _build_key_daily(activity_data)
+    for item in activity_data:
+        date = item.get("date", "")
+        usage = item.get("usage", 0) or 0
+        if date:
+            daily[date] += usage
+
+    if not daily:
+        return {"days": [], "daily_average": 0.0, "today_so_far": 0.0, "openrouter_daily": None, "by_key": {}}
+
+    sorted_dates = sorted(daily.keys())
+    days = [{"date": d, "cost": round(daily[d], 6), "prediction": None} for d in sorted_dates]
+
+    today_str = time.strftime("%Y-%m-%d", time.gmtime())
+    past_days = [d for d in sorted_dates if d != today_str]
+    past_costs = [daily[d] for d in past_days]
+    daily_average = sum(past_costs) / len(past_costs) if past_costs else 0.0
+
+    today_cost = daily.get(today_str, 0.0)
+
+    # Linear regression on last 30 days for prediction
+    prediction_days = []
+    if len(past_days) >= 3:
+        N = min(30, len(past_days))
+        recent = past_days[-N:]
+        xs = list(range(N))
+        ys = [daily[d] for d in recent]
+
+        n = len(xs)
+        sum_x = sum(xs)
+        sum_y = sum(ys)
+        sum_xy = sum(x * y for x, y in zip(xs, ys))
+        sum_xx = sum(x * x for x in xs)
+        denom = n * sum_xx - sum_x * sum_x
+        if denom != 0:
+            slope = (n * sum_xy - sum_x * sum_y) / denom
+            intercept = (sum_y - slope * sum_x) / n
+            last_actual = sorted_dates[-1]
+            for i in range(1, 31):
+                pred_val = max(0.0, intercept + slope * (N + i - 1))
+                pred_date = _add_days(last_actual, i)
+                prediction_days.append({
+                    "date": pred_date,
+                    "cost": 0.0,
+                    "prediction": round(pred_val, 6),
+                })
+
+    # Build per-key breakdown
+    by_key_result = {}
+    for kn in key_order:
+        kd = by_key[kn]
+        ksorted = sorted(kd.keys())
+        kdays = [{"date": d, "cost": round(kd[d], 6), "prediction": None} for d in ksorted]
+        kpast = [d for d in ksorted if d != today_str]
+        kpast_costs = [kd[d] for d in kpast]
+        kavg = sum(kpast_costs) / len(kpast_costs) if kpast_costs else 0.0
+        kpred = _predict_for_key(kd)
+        by_key_result[kn] = {
+            "days": kdays + kpred,
+            "daily_average": round(kavg, 6),
+            "today_so_far": round(kd.get(today_str, 0.0), 6),
+        }
+
+    return {
+        "days": days + prediction_days,
+        "daily_average": round(daily_average, 6),
+        "today_so_far": round(today_cost, 6),
+        "openrouter_daily": round(today_cost, 6),
+        "monthly_projection": round(today_cost * 30, 6),
+        "by_key": by_key_result,
+    }
+
+
+def build_ledger_from_activity(activity_data: list[dict]) -> dict:
+    """Build ledger dict (total tokens, cost, per-model) from OR activity data.
+
+    Returns same shape as build_sessions_ledger() — total tokens, cost,
+    per-model breakdown. No cache data or per-profile (OR doesn't have it).
+    """
+    from collections import defaultdict
+
+    total_requests = 0
+    total_prompt_tokens = 0
+    total_completion_tokens = 0
+    total_reasoning_tokens = 0
+    total_usage = 0.0
+
+    per_model = defaultdict(lambda: {
+        "input_tokens": 0, "output_tokens": 0,
+        "cache_read_tokens": 0, "cache_write_tokens": 0,
+        "estimated_cost_usd": 0.0, "sessions": 0,
+    })
+
+    for item in activity_data:
+        model = item.get("model", "unknown")
+        prompt = item.get("prompt_tokens", 0) or 0
+        completion = item.get("completion_tokens", 0) or 0
+        reasoning = item.get("reasoning_tokens", 0) or 0
+        requests = item.get("requests", 0) or 0
+        usage = item.get("usage", 0) or 0
+
+        total_prompt_tokens += prompt
+        total_completion_tokens += completion
+        total_reasoning_tokens += reasoning
+        total_requests += requests
+        total_usage += usage
+
+        pm = per_model[model]
+        pm["input_tokens"] += prompt
+        pm["output_tokens"] += completion
+        pm["estimated_cost_usd"] += usage
+        pm["sessions"] += requests
+
+    total_tokens = total_prompt_tokens + total_completion_tokens + total_reasoning_tokens
+
+    return {
+        "total_input_tokens": total_prompt_tokens,
+        "total_output_tokens": total_completion_tokens,
+        "total_cache_read_tokens": 0,
+        "total_cache_write_tokens": 0,
+        "total_estimated_cost_usd": round(total_usage, 6),
+        "cache_hit_rate_pct": 0.0,
+        "session_count": total_requests,
+        "total_tokens": total_tokens,
+        "total_cache_tokens": 0,
+        "per_model": dict(per_model),
+        "per_profile": {},
+    }
 
 
 def build_sessions_ledger(all_sessions, total_session_count=None, pricing_cache=None):

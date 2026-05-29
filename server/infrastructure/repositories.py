@@ -4,7 +4,8 @@ import sqlite3
 from server.domain.models import (
     GatewayState, ProcessList, VpsHealth, CronJob, ServerHealth, DokkuApp,
     Profile, ProfileStats, ProfileModelUsage, Session, SessionLedger,
-    LedgerBreakdown, KanbanTask, OpenRouterUsage, DailyCost,
+    LedgerBreakdown, KanbanTask, OpenRouterUsage, OpenRouterActivity,
+    OpenRouterKey, DailyCost,
     WorkServerHealth, WorkDocker, WorkNexus, WorkJenkins, WorkPostgres,
 )
 from server.domain.repositories import (
@@ -12,7 +13,9 @@ from server.domain.repositories import (
     CronJobRepository, ServerHealthRepository, DokkuAppRepository,
     ProfileRepository, ProfileStatsRepository, ProfileModelUsageRepository,
     SessionRepository, SessionLedgerRepository, LedgerBreakdownRepository,
-    KanbanTaskRepository, OpenRouterUsageRepository, DailyCostRepository,
+    KanbanTaskRepository, OpenRouterUsageRepository, OpenRouterActivityRepository,
+    OpenRouterKeyRepository,
+    DailyCostRepository,
     WorkServerHealthRepository, WorkDockerRepository, WorkNexusRepository,
     WorkJenkinsRepository, WorkPostgresRepository,
 )
@@ -362,6 +365,42 @@ class SqliteOpenRouterUsageRepository(_SqliteBase, OpenRouterUsageRepository):
     def get_latest(self) -> OpenRouterUsage | None:
         row = self._fetch_latest_singleton()
         return OpenRouterUsage.from_row(row) if row else None
+
+    def cleanup(self, before: float) -> int:
+        return self._delete_before(before)
+
+
+# =============================================================================
+# OpenRouter Activity
+# =============================================================================
+
+class SqliteOpenRouterActivityRepository(_SqliteBase, OpenRouterActivityRepository):
+    def __init__(self, db_path: str):
+        super().__init__(db_path, "openrouter_activity", OpenRouterActivity)
+
+    def save_many(self, items: list[OpenRouterActivity]) -> None:
+        self._insert_many([item.to_row() for item in items])
+
+    def get_latest_batch(self) -> list[OpenRouterActivity]:
+        return [OpenRouterActivity.from_row(r) for r in self._fetch_latest_batch()]
+
+    def cleanup(self, before: float) -> int:
+        return self._delete_before(before)
+
+
+# =============================================================================
+# OpenRouter Keys
+# =============================================================================
+
+class SqliteOpenRouterKeyRepository(_SqliteBase, OpenRouterKeyRepository):
+    def __init__(self, db_path: str):
+        super().__init__(db_path, "openrouter_keys", OpenRouterKey)
+
+    def save_many(self, items: list[OpenRouterKey]) -> None:
+        self._insert_many([item.to_row() for item in items])
+
+    def get_latest(self) -> list[OpenRouterKey]:
+        return [OpenRouterKey.from_row(r) for r in self._fetch_latest_batch()]
 
     def cleanup(self, before: float) -> int:
         return self._delete_before(before)

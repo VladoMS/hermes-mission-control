@@ -3,6 +3,14 @@
 import sqlite3
 import time
 
+def _migrate_add_column(db: sqlite3.Connection, table: str, column: str, col_def: str) -> None:
+    """Add a column to an existing table if it doesn't already exist."""
+    try:
+        db.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
+    except sqlite3.OperationalError:
+        pass  # column already exists
+
+
 # =============================================================================
 # Table schemas — one CREATE per domain model
 # Column order must match the model's COLUMNS tuple exactly.
@@ -196,6 +204,34 @@ TABLE_SCHEMAS = {
         rate_limit_requests INTEGER NOT NULL,
         rate_limit_interval TEXT NOT NULL
     )""",
+    "openrouter_activity": """CREATE TABLE IF NOT EXISTS openrouter_activity (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        collected_at REAL NOT NULL,
+        date TEXT NOT NULL,
+        model TEXT NOT NULL,
+        model_permaslug TEXT NOT NULL,
+        endpoint_id TEXT NOT NULL,
+        provider_name TEXT NOT NULL,
+        usage REAL NOT NULL,
+        byok_usage_inference REAL NOT NULL,
+        requests INTEGER NOT NULL,
+        prompt_tokens INTEGER NOT NULL,
+        completion_tokens INTEGER NOT NULL,
+        reasoning_tokens INTEGER NOT NULL,
+        key_name TEXT NOT NULL DEFAULT ''
+    )""",
+    "openrouter_keys": """CREATE TABLE IF NOT EXISTS openrouter_keys (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        collected_at REAL NOT NULL,
+        key_hash TEXT NOT NULL,
+        key_name TEXT NOT NULL,
+        label TEXT NOT NULL,
+        usage REAL NOT NULL,
+        usage_daily REAL NOT NULL,
+        usage_weekly REAL NOT NULL,
+        usage_monthly REAL NOT NULL,
+        disabled INTEGER NOT NULL
+    )""",
     "daily_costs": """CREATE TABLE IF NOT EXISTS daily_costs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         collected_at REAL NOT NULL,
@@ -263,6 +299,8 @@ TABLE_INDEXES = {
     "ledger_breakdown": "CREATE INDEX IF NOT EXISTS idx_ledger_breakdown_ca ON ledger_breakdown(collected_at DESC)",
     "kanban_tasks": "CREATE INDEX IF NOT EXISTS idx_kanban_tasks_ca ON kanban_tasks(collected_at DESC)",
     "openrouter_usage": "CREATE INDEX IF NOT EXISTS idx_openrouter_usage_ca ON openrouter_usage(collected_at DESC)",
+    "openrouter_activity": "CREATE INDEX IF NOT EXISTS idx_openrouter_activity_ca ON openrouter_activity(collected_at DESC)",
+    "openrouter_keys": "CREATE INDEX IF NOT EXISTS idx_openrouter_keys_ca ON openrouter_keys(collected_at DESC)",
     "daily_costs": "CREATE INDEX IF NOT EXISTS idx_daily_costs_ca ON daily_costs(collected_at DESC)",
     "work_server_health": "CREATE INDEX IF NOT EXISTS idx_work_server_health_ca ON work_server_health(collected_at DESC)",
     "work_docker": "CREATE INDEX IF NOT EXISTS idx_work_docker_ca ON work_docker(collected_at DESC)",
@@ -295,6 +333,8 @@ class Database:
                 db.execute(schema)
             for idx in TABLE_INDEXES.values():
                 db.execute(idx)
+            # Migrations: add columns for existing tables
+            _migrate_add_column(db, "openrouter_activity", "key_name", "TEXT NOT NULL DEFAULT ''")
             db.commit()
             db.close()
         except Exception:

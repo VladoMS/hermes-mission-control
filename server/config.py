@@ -77,6 +77,10 @@ _CHANNEL_REGISTRY = [
     ("server-crons",   300,   3),
     # OpenRouter usage — live credit/cost data from OpenRouter API
     ("openrouter-usage", 60,   2),
+    # OpenRouter activity — per-day per-model usage/token/cost data (cached locally)
+    ("openrouter-activity", 300, 2),
+    # OpenRouter keys — account-level key listing with usage totals
+    ("openrouter-keys", 600, 3),
     ("servers",         60,   3),
     # Work servers — conservative intervals to avoid strain
     ("work-system",    900,   3),   # 15 min — CPU/MEM/DISK

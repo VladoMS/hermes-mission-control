@@ -52,6 +52,8 @@ _DOMAIN_CONFIG = {
     "server-crons":        ("cron-jobs",           "list",      "server-crons"),
     "servers":             ("servers",             "list",      "servers"),
     "openrouter-usage":    ("openrouter-usage",    "singleton", "openrouter-usage"),
+    "openrouter-activity": ("openrouter-activity", "list",      "openrouter-activity"),
+    "openrouter-keys":     ("openrouter-keys",     "list",      "openrouter-keys"),
     "daily-costs":         ("daily-costs",         "list",      "daily-costs"),
     "work-system":         ("work-system",         "list",      "work-system"),
     "work-docker":         ("work-docker",         "list",      "work-docker"),
@@ -136,7 +138,8 @@ class MissionControlHandlerV2(http.server.BaseHTTPRequestHandler):
         if "live" in qs:
             collector_fn = self.collectors.get(collector_key)
             if collector_fn:
-                collector_fn()
+                fresh = collector_fn()
+                self.__class__.enriched_cache[domain] = fresh
 
         # Return from enriched cache if available
         cached = self.__class__.enriched_cache.get(domain)

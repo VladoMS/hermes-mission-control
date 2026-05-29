@@ -21,6 +21,7 @@ from server.domain.models import (
     LedgerBreakdown,
     KanbanTask,
     OpenRouterUsage,
+    OpenRouterKey,
     DailyCost,
     WorkServerHealth,
     WorkDocker,
@@ -152,6 +153,24 @@ class OpenRouterUsageRepository(ABC):
     def save(self, usage: OpenRouterUsage) -> None: ...
     @abstractmethod
     def get_latest(self) -> OpenRouterUsage | None: ...
+    @abstractmethod
+    def cleanup(self, before: float) -> int: ...
+
+
+class OpenRouterActivityRepository(ABC):
+    @abstractmethod
+    def save_many(self, items: list[OpenRouterActivity]) -> None: ...
+    @abstractmethod
+    def get_latest_batch(self) -> list[OpenRouterActivity]: ...
+    @abstractmethod
+    def cleanup(self, before: float) -> int: ...
+
+
+class OpenRouterKeyRepository(ABC):
+    @abstractmethod
+    def save_many(self, items: list[OpenRouterKey]) -> None: ...
+    @abstractmethod
+    def get_latest(self) -> list[OpenRouterKey]: ...
     @abstractmethod
     def cleanup(self, before: float) -> int: ...
 
