@@ -32,6 +32,7 @@ const navTabs = [
   { id: 'servers', label: 'Servers' },
   { id: 'sessions', label: 'Sessions' },
   { id: 'content', label: 'Content' },
+  { id: 'work-servers', label: 'Work' },
 ]
 
 // ── Page → SSE channel mapping ───────────────────────────────────────

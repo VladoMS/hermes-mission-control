@@ -10,8 +10,32 @@
       </div>
     </div>
 
+    <!-- Tier 1: Summary strip -->
+    <div v-if="servers.length" class="summary-strip panel">
+      <div class="summary-cell">
+        <div class="summary-label mono">Servers</div>
+        <div class="summary-val">{{ servers.length }}</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-label mono">Healthy</div>
+        <div class="summary-val green">{{ healthyCount }}</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-label mono">Warning</div>
+        <div class="summary-val amber">{{ warningCount }}</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-label mono">Critical</div>
+        <div class="summary-val red">{{ criticalCount }}</div>
+      </div>
+      <div class="summary-cell">
+        <div class="summary-label mono">Containers</div>
+        <div class="summary-val">{{ totalRunningContainers }} / {{ totalContainers }}</div>
+      </div>
+    </div>
+
     <div v-if="servers.length === 0" class="empty-state panel">
-      <div class="placeholder-panel">Collecting data... first poll at 15-minute intervals.</div>
+      <div class="placeholder-panel" style="color: var(--text-dim)">Collecting data... first poll at 15-minute intervals.</div>
     </div>
 
     <div v-for="srv in servers" :key="srv.key" class="server-card panel">
@@ -59,7 +83,7 @@
           <div class="role-subheader mono">RECENTLY STOPPED</div>
           <div v-for="c in srv.docker.stopped.slice(0, 8)" :key="c.name" class="swarm-svc-row">
             <span class="svc-name mono">{{ c.name }}</span>
-            <span class="mono dim" style="font-size:9px">{{ c.status }}</span>
+            <span class="mono dim stopped-status">{{ c.status }}</span>
           </div>
         </div>
         <!-- Swarm services -->
@@ -194,9 +218,9 @@
       <div v-if="srv.etcd?.endpoints?.length" class="role-panel">
         <div class="role-header">
           ◆ ETCD
-          <span class="mono dim" style="font-size:9px">{{ srv.etcd.endpoints.length }} nodes</span>
-          <span v-if="srv.etcd.healthy" class="green" style="font-size:9px">● HEALTHY</span>
-          <span v-else class="red" style="font-size:9px">● UNHEALTHY</span>
+          <span class="mono dim etcd-node-count">{{ srv.etcd.endpoints.length }} nodes</span>
+          <span v-if="srv.etcd.healthy" class="green etcd-health">● HEALTHY</span>
+          <span v-else class="red etcd-health">● UNHEALTHY</span>
         </div>
         <div class="role-grid">
           <div class="role-stat">
@@ -232,6 +256,41 @@ import HealthBar from '../components/HealthBar.vue'
 const ws = useWorkServersStore()
 const { connect } = useSSE()
 const servers = computed(() => ws.servers)
+
+// Tier 1 summary aggregates
+const healthyCount = computed(() => servers.value.filter(s => {
+  const h = s.health || {}
+  const cpu = h.cpu_pct ?? 0; const mem = h.memory?.pct ?? 0
+  return cpu !== undefined && cpu <= 70 && mem <= 75
+}).length)
+
+const warningCount = computed(() => servers.value.filter(s => {
+  const h = s.health || {}
+  const cpu = h.cpu_pct ?? 0; const mem = h.memory?.pct ?? 0
+  return (cpu > 70 && cpu <= 90) || (mem > 75 && mem <= 90)
+}).length)
+
+const criticalCount = computed(() => servers.value.filter(s => {
+  const h = s.health || {}
+  const cpu = h.cpu_pct ?? 0; const mem = h.memory?.pct ?? 0
+  return cpu > 90 || mem > 90
+}).length)
+
+const totalRunningContainers = computed(() => {
+  let n = 0
+  for (const s of servers.value) {
+    if (s.docker) n += s.docker.running_count || 0
+  }
+  return n
+})
+
+const totalContainers = computed(() => {
+  let n = 0
+  for (const s of servers.value) {
+    if (s.docker) n += s.docker.total_containers || 0
+  }
+  return n
+})
 
 // Reactive "time ago" that ticks every 30s
 const now = ref(Date.now())
@@ -285,14 +344,6 @@ function fmtUptime(h) {
   return Math.floor(h) + 'h'
 }
 
-function fmtBytes(b) {
-  if (!b) return '--'
-  if (b >= 1e12) return (b / 1e12).toFixed(1) + 'TB'
-  if (b >= 1e9) return (b / 1e9).toFixed(1) + 'GB'
-  if (b >= 1e6) return (b / 1e6).toFixed(1) + 'MB'
-  return (b / 1e3).toFixed(0) + 'KB'
-}
-
 function fmtVersion(v) {
   if (!v) return '--'
   const s = String(v)
@@ -305,6 +356,28 @@ function fmtVersion(v) {
 .work-servers-page { position: relative; z-index: 5; }
 .last-updated { font-size: 10px; color: var(--text-faint); margin-top: 8px; }
 .empty-state { padding: 40px; text-align: center; }
+
+/* Summary strip (Tier 1) */
+.summary-strip {
+  display: flex;
+  padding: 18px;
+  margin-bottom: 28px;
+  gap: 0;
+}
+.summary-cell {
+  flex: 1;
+  text-align: center;
+  padding: 8px 12px;
+}
+.summary-label {
+  font-size: 10px; color: var(--text-faint);
+  text-transform: uppercase; letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+.summary-val {
+  font-family: var(--font-display);
+  font-size: 22px; font-weight: 700; color: var(--text-hi);
+}
 
 /* Server card */
 .server-card {
@@ -356,9 +429,9 @@ function fmtVersion(v) {
   text-transform: uppercase; margin-bottom: 10px;
   display: flex; align-items: center; gap: 8px;
 }
-.jenkins-type { font-size: 9px; }
+.jenkins-type { font-size: 10px; }
 .patroni-chip {
-  font-size: 9px;
+  font-size: 10px;
   padding: 1px 6px;
   font-family: var(--font-mono);
   font-weight: 600;
@@ -367,7 +440,7 @@ function fmtVersion(v) {
 }
 .patroni-chip.master, .patroni-chip.leader { color: var(--green); background: rgba(74,222,128,0.12); }
 .patroni-chip.replica, .patroni-chip.standby { color: var(--cyan); background: rgba(30,200,255,0.12); }
-.pg-running { font-size: 9px; font-family: var(--font-mono); }
+.pg-running { font-size: 10px; font-family: var(--font-mono); }
 .role-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -378,13 +451,13 @@ function fmtVersion(v) {
   padding: 8px 10px;
   display: flex; flex-direction: column; gap: 2px;
 }
-.role-label { font-size: 9px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.08em; }
+.role-label { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.08em; }
 .role-val { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text-hi); }
 
 /* Sub-panels */
 .role-subpanel { margin-top: 10px; }
 .role-subheader {
-  font-size: 9px; color: var(--text-dim); letter-spacing: 0.1em;
+  font-size: 10px; color: var(--text-dim); letter-spacing: 0.1em;
   text-transform: uppercase; margin-bottom: 6px;
 }
 
@@ -411,12 +484,17 @@ function fmtVersion(v) {
 .amber { color: var(--amber); }
 .red { color: var(--red); }
 
+/* Role header badges */
+.etcd-node-count { font-size: 10px; }
+.etcd-health { font-size: 10px; }
+.stopped-status { font-size: 10px; }
+
 /* Format chips */
 .format-chips {
   display: flex; flex-wrap: wrap; gap: 4px;
 }
 .format-chips .chip {
-  font-family: var(--font-mono); font-size: 9px;
+  font-family: var(--font-mono); font-size: 10px;
   padding: 2px 6px;
   background: var(--bg-elevated);
   color: var(--text-dim);
