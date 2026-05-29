@@ -17,7 +17,7 @@ from server.config import HERMES_HOME
 from server.readers import read_json, _read_servers_config
 from server.health import get_hermes_health, get_prod_health
 from server.profiles import build_profiles
-from server.sessions import build_unified_sessions, build_sessions_ledger, build_daily_costs
+from server.sessions import build_unified_sessions, build_sessions_ledger, build_daily_costs, _build_model_pricing_cache
 from server.servers import build_servers, _get_dokku_data, _get_server_crons
 from server.kanban import read_kanban_boards
 from server.work_servers import (
@@ -283,7 +283,8 @@ class SessionLedgerCollector:
     def collect(self) -> dict:
         profiles = build_profiles([])
         unified, total_count = build_unified_sessions(profiles, [])
-        ledger = build_sessions_ledger(unified, total_count)
+        pricing_cache = _build_model_pricing_cache(profiles)
+        ledger = build_sessions_ledger(unified, total_count, pricing_cache)
         collected_at = time.time()
 
         model = SessionLedger.from_ledger_dict(ledger, collected_at)
@@ -299,6 +300,8 @@ class SessionLedgerCollector:
             self.breakdown_repo.save_many(breakdowns)
 
         enriched = asdict(model)
+        enriched["total_tokens"] = ledger.get("total_tokens", 0)
+        enriched["total_cache_tokens"] = ledger.get("total_cache_tokens", 0)
         enriched["per_model"] = ledger.get("per_model", {})
         enriched["per_profile"] = ledger.get("per_profile", {})
         return enriched

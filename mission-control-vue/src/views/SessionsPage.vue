@@ -7,9 +7,11 @@
       </div>
     </div>
 
-    <TokenLedger />
     <DailyCostChart />
-    <PieChart />
+    <div class="row-charts">
+      <TokenLedger />
+      <PieChart />
+    </div>
     <SessionsTable />
   </div>
 </template>
@@ -28,4 +30,10 @@ const sessionCount = computed(() => sessionsStore.sessionCount)
 
 <style scoped>
 .sessions-page { position: relative; z-index: 5; }
+.row-charts {
+  display: grid;
+  grid-template-columns: 5fr 1fr;
+  gap: 28px;
+  margin-bottom: 28px;
+}
 </style>

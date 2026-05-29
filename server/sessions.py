@@ -439,9 +439,11 @@ def _add_days(date_str, n):
     return (dt + timedelta(days=n)).strftime("%Y-%m-%d")
 
 
-def build_sessions_ledger(all_sessions, total_session_count=None):
+def build_sessions_ledger(all_sessions, total_session_count=None, pricing_cache=None):
     """Compute aggregate token/cost stats from a unified session list.
     total_session_count is the real unfiltered count (all_sessions may be capped).
+    pricing_cache is an optional dict from _build_model_pricing_cache() for
+    computing cost on sessions missing estimated_cost_usd.
     Returns dict with totals, per-model breakdown, per-profile breakdown, cache hit rate."""
     total_input = 0
     total_output = 0
@@ -457,7 +459,11 @@ def build_sessions_ledger(all_sessions, total_session_count=None):
         out = s.get("output_tokens") or 0
         cr = s.get("cache_read_tokens") or 0
         cw = s.get("cache_write_tokens") or 0
-        cost = s.get("estimated_cost_usd") or 0
+        cost = _compute_session_cost(
+            s.get("model"), inp, out, cr, cw,
+            s.get("estimated_cost_usd"),
+            pricing_cache,
+        )
 
         total_input += inp
         total_output += out
