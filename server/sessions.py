@@ -1,6 +1,7 @@
 """Session ledger builder."""
 
 import os
+import sqlite3
 from server.config import HERMES_HOME
 from server.readers import read_sqlite_ro, read_json
 # =============================================================================
