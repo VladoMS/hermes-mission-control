@@ -32,7 +32,12 @@ const serverCount = computed(() => serversStore.serverCount)
 
 <style scoped>
 .servers-page { position: relative; z-index: 5; }
-.servers-list { }
+.servers-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
 .placeholder-panel {
   display: flex;
   align-items: center;
