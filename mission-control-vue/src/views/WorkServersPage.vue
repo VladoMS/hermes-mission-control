@@ -293,23 +293,18 @@ function closeDetails() {
 }
 
 // Tier 1 summary aggregates
-const healthyCount = computed(() => servers.value.filter(s => {
+function serverHealth(s) {
   const h = s.health || {}
-  const cpu = h.cpu_pct ?? 0; const mem = h.memory?.pct ?? 0
-  return cpu !== undefined && cpu <= 70 && mem <= 75
-}).length)
+  const cpu = h.cpu_pct; const mem = h.memory?.pct
+  if (cpu === undefined && mem === undefined) return 'unknown'
+  if ((cpu ?? 0) > 90 || (mem ?? 0) > 95) return 'critical'
+  if ((cpu ?? 0) > 70 || (mem ?? 0) > 85) return 'warning'
+  return 'healthy'
+}
 
-const warningCount = computed(() => servers.value.filter(s => {
-  const h = s.health || {}
-  const cpu = h.cpu_pct ?? 0; const mem = h.memory?.pct ?? 0
-  return (cpu > 70 && cpu <= 90) || (mem > 75 && mem <= 90)
-}).length)
-
-const criticalCount = computed(() => servers.value.filter(s => {
-  const h = s.health || {}
-  const cpu = h.cpu_pct ?? 0; const mem = h.memory?.pct ?? 0
-  return cpu > 90 || mem > 90
-}).length)
+const healthyCount = computed(() => servers.value.filter(s => serverHealth(s) === 'healthy').length)
+const warningCount = computed(() => servers.value.filter(s => serverHealth(s) === 'warning').length)
+const criticalCount = computed(() => servers.value.filter(s => serverHealth(s) === 'critical').length)
 
 const totalRunningContainers = computed(() => {
   let n = 0
@@ -359,17 +354,18 @@ const lastUpdate = computed(() => {
 })
 
 function cardBorderClass(srv) {
-  const h = srv.health || {}
-  if (!h || h.cpu_pct === undefined) return ''
-  if (h.cpu_pct > 90 || (h.memory?.pct || 0) > 95) return 'border-critical'
-  if (h.cpu_pct > 70 || (h.memory?.pct || 0) > 85) return 'border-warning'
+  const s = serverHealth(srv)
+  if (s === 'critical') return 'border-critical'
+  if (s === 'warning') return 'border-warning'
   return ''
 }
 
 function healthClass(h) {
-  if (!h || h.cpu_pct === undefined) return ''
-  if (h.cpu_pct > 90 || (h.memory?.pct || 0) > 95) return 'red'
-  if (h.cpu_pct > 70 || (h.memory?.pct || 0) > 85) return 'amber'
+  if (!h) return ''
+  const s = serverHealth({ health: h })
+  if (s === 'critical') return 'red'
+  if (s === 'warning') return 'amber'
+  if (s === 'unknown') return ''
   return 'green'
 }
 
