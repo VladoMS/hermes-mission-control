@@ -67,7 +67,7 @@ const barClass = computed(() => {
 .fill.amber { background: var(--amber); }
 .health-pct {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   width: 34px;
   text-align: right;
 }

@@ -192,7 +192,7 @@ body {
 
 .eyebrow {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.3em;
   color: var(--red);
   text-transform: uppercase;
@@ -233,7 +233,7 @@ body {
   gap: 6px;
   padding: 4px 8px;
   font-family: var(--font-mono);
-  font-size: 9.5px;
+  font-size: 11px;
   letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--text);
@@ -305,7 +305,7 @@ body {
 /* Loading text — pulsing faint animation for progressive-load placeholders */
 .loading-text {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.12em;
   color: var(--text-faint);
   text-transform: uppercase;
@@ -349,7 +349,7 @@ body {
   border: 1px solid var(--bcol);
   color: var(--text-hi);
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 12px;
   letter-spacing: 0.22em;
   text-transform: uppercase;
   cursor: pointer;
@@ -427,7 +427,7 @@ body {
 .top-bar .brand-sub {
   color: var(--red);
   letter-spacing: 0.22em;
-  font-size: 10px;
+  font-size: 11px;
   font-family: var(--font-mono);
 }
 
@@ -452,7 +452,7 @@ body {
 .top-bar .tab {
   padding: 5px 14px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -482,7 +482,7 @@ body {
   gap: 14px;
   align-items: center;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   color: var(--text-dim);
 }
@@ -506,7 +506,7 @@ body {
   align-items: center;
   padding: 2px 8px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--text-faint);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--line-dim);
@@ -685,7 +685,7 @@ body {
   }
 
   .top-bar .tab {
-    font-size: 9px;
+    font-size: 10px;
     padding: 4px 10px;
   }
 
@@ -700,7 +700,7 @@ body {
   }
 
   .top-bar .status-cluster {
-    font-size: 9px;
+    font-size: 10px;
     gap: 8px;
   }
 
