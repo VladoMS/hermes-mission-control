@@ -3,6 +3,7 @@
 import hashlib
 import json
 import queue as queue_module
+import sqlite3
 import threading
 import time
 from server.config import _CHANNEL_FINGERPRINTS, _fp_lock, _CHANNEL_BURST, DASHBOARD_DB
