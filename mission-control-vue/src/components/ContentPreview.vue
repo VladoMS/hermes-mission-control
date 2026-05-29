@@ -11,14 +11,14 @@
     <!-- Document content -->
     <template v-else>
       <div class="preview-header">
-        <div class="eyebrow">{{ contentStore.selectedDoc.agent }}</div>
+        <div class="eyebrow">{{ isVault ? 'VAULT ► ' + (contentStore.selectedDoc.section || '') : contentStore.selectedDoc.agent }}</div>
         <div class="preview-title mono">{{ contentStore.selectedDoc.title || contentStore.selectedDoc.filename }}</div>
         <div class="preview-actions">
           <span class="preview-meta mono">{{ contentStore.selectedDoc.modified_at || '' }}</span>
           <div class="preview-btns">
-            <!-- Edit button (only in view mode) -->
+            <!-- Edit button (only in view mode, only for agent docs) -->
             <button
-              v-if="!contentStore.isEditing"
+              v-if="!contentStore.isEditing && !isVault"
               class="btn ghost"
               @click="contentStore.toggleEdit()"
             >
@@ -46,13 +46,13 @@
 
       <!-- File metadata bar -->
       <div
-        v-if="contentStore.absPath"
+        v-if="activeAbsPath"
         class="preview-path-meta"
         @click="copyPath"
         :title="'Click to copy full path'"
       >
         <span class="path-label mono">PATH ›</span>
-        <span class="path-value mono">{{ contentStore.absPath }}</span>
+        <span class="path-value mono">{{ activeAbsPath }}</span>
         <span v-if="copied" class="path-copied mono">COPIED</span>
       </div>
 
@@ -91,19 +91,56 @@ const contentStore = useContentStore()
 const editText = ref('')
 const copied = ref(false)
 
+/** Whether the selected doc is from the vault. */
+const isVault = computed(() =>
+  contentStore.selectedDoc?.source === 'vault'
+)
+
+/** Content to render (agent or vault). */
+const activeContent = computed(() =>
+  isVault.value ? contentStore.vaultContent : contentStore.docContent
+)
+
+/** Absolute path to show and copy. */
+const activeAbsPath = computed(() =>
+  isVault.value ? contentStore.vaultAbsPath : contentStore.absPath
+)
+
 const renderedHtml = computed(() => {
-  const text = contentStore.docContent
+  let text = activeContent.value
   if (!text) return ''
+
+  // ── Obsidian markdown pre-processing ──
+
+  // Strip YAML frontmatter (--- at start of file)
+  text = text.replace(/^---[\s\S]*?---\n*/, '')
+
+  // Convert wikilinks with alias: [[path|Alias]] → [Alias](vault://path)
+  text = text.replace(/\[\[([^\]|#]+)\|([^\]]+)\]\]/g, (_m, path, alias) => {
+    return `[${alias.trim()}](vault://${path.trim()})`
+  })
+
+  // Convert bare wikilinks: [[path]] → [path](vault://path)
+  // (after aliased ones so we don't double-match)
+  text = text.replace(/\[\[([^\]]+)\]\]/g, (_m, path) => {
+    // Strip block references: note^block → note
+    const clean = path.replace(/\^[a-zA-Z0-9-]+$/, '').trim()
+    return `[${clean}](vault://${clean})`
+  })
+
+  // Convert inline #tags to styled spans (skip headings # like # H1)
+  text = text.replace(/(^|[ \t])#([a-zA-Z][a-zA-Z0-9_-]+)/g, '$1<span class="obsidian-tag">#$2</span>')
+
   return marked.parse(text)
 })
 
 // Sync editText when doc content loads or changes
-watch(() => contentStore.docContent, (val) => {
+watch(activeContent, (val) => {
   editText.value = val
 })
 
 function copyPath() {
-  const text = contentStore.absPath
+  const text = activeAbsPath.value
   if (!text) return
 
   // Try modern Clipboard API first (secure contexts only)
@@ -285,6 +322,25 @@ function cancelEdit() {
 }
 .preview-content :deep(a:hover) {
   text-decoration: underline;
+}
+/* Obsidian tag styling */
+.preview-content :deep(.obsidian-tag) {
+  color: var(--magenta);
+  background: rgba(217, 70, 239, 0.1);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+/* Vault wikilinks (converted from [[ ]]) */
+.preview-content :deep(a[href^="vault://"]) {
+  color: var(--green);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--green);
+}
+.preview-content :deep(a[href^="vault://"]:hover) {
+  color: var(--green);
+  border-bottom-style: solid;
 }
 .preview-content :deep(hr) {
   border: none;

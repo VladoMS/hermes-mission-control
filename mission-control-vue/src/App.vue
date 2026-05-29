@@ -38,11 +38,12 @@ const navTabs = [
 // ── Page → SSE channel mapping ───────────────────────────────────────
 const PAGE_CHANNELS = {
   overview:  ['gateway', 'processes', 'hermes-health', 'sessions-ledger',
-              'profiles', 'sessions', 'kanban', 'prod-health'],
+              'profiles', 'sessions', 'kanban', 'prod-health',
+              'openrouter-usage'],
   profiles:  ['profiles'],
   kanban:    ['kanban'],
   servers:   ['servers', 'dokku', 'prod-health', 'server-crons'],
-  sessions:  ['sessions', 'sessions-ledger'],
+  sessions:  ['sessions', 'sessions-ledger', 'daily-costs'],
   content:   [],  // Content page uses its own REST API — no SSE needed
 }
 

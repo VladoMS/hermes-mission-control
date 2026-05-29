@@ -34,6 +34,9 @@ const stats = computed(() => {
     : 0
   const ledger = d.sessions_ledger || {}
   const tokens = ledger.total_tokens || 0
+  const orUsage = d.openrouter_usage || {}
+  const spend = orUsage.total_usage_usd != null ? '$' + Number(orUsage.total_usage_usd).toFixed(2) : '--'
+
   const kanban = d.kanban?.boards || {}
   let totalTasks = 0
   for (const b of Object.values(kanban)) totalTasks += b.task_count || 0
@@ -43,6 +46,7 @@ const stats = computed(() => {
     { label: 'PROFILES', value: profiles },
     { label: 'SESSIONS TODAY', value: sessionsToday || Object.keys(sessions).length || '--' },
     { label: 'TOKENS', value: fmtTokens(tokens) },
+    { label: 'SPEND', value: spend },
     { label: 'KANBAN TASKS', value: totalTasks },
   ]
 })
@@ -51,7 +55,7 @@ const stats = computed(() => {
 <style scoped>
 .stats-strip {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 1px;
   background: var(--line);
   border: 1px solid var(--line);

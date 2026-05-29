@@ -11,14 +11,15 @@ from http import HTTPStatus
 from server.config import _CHANNEL_REGISTRY, _CHANNEL_FINGERPRINTS, _fp_lock, _CHANNEL_BURST, _SSE_QUEUE, CA_CERT_FILE, HERMES_HOME
 from server.sse import _sse_multiplex_drain
 from server.readers import _read_servers_config, read_json
-from server.content import list_content, read_content, save_content
+from server.content import list_content, read_content, save_content, list_vault, read_vault
 from server.glance import _get_glance_data
 from server.snapshot import _CHANNEL_COLLECTORS
 from server.collectors import (
     collect_gateway, collect_processes, collect_hermes_health,
     collect_sessions_ledger, collect_profiles, collect_sessions,
     collect_kanban, collect_prod_health, collect_dokku,
-    collect_server_crons, collect_servers,
+    collect_server_crons, collect_servers, collect_openrouter_usage,
+    collect_daily_costs,
 )
 from server.work_servers import (
     collect_work_system_health, collect_work_docker,
@@ -69,6 +70,10 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
             self._serve_channel("server-crons", collect_server_crons)
         elif path == "/api/servers":
             self._serve_channel("servers", collect_servers)
+        elif path == "/api/openrouter-usage":
+            self._serve_channel("openrouter-usage", collect_openrouter_usage)
+        elif path == "/api/daily-costs":
+            self._serve_channel("daily-costs", collect_daily_costs)
         # Work server endpoints
         elif path == "/api/work-system":
             self._serve_channel("work-system", collect_work_system_health)
@@ -84,6 +89,10 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
             self._serve_content_list()
         elif path == "/api/content/get":
             self._serve_content_get(qs)
+        elif path == "/api/vault":
+            self._serve_vault_list()
+        elif path == "/api/vault/get":
+            self._serve_vault_get(qs)
         elif path == "/api/glance-data":
             self._serve_glance_data()
         elif path == "/events":
@@ -389,6 +398,35 @@ class MissionControlHandler(http.server.BaseHTTPRequestHandler):
             return
 
         body = json.dumps({"ok": True, "path": rel_path}).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", len(body))
+        self._cors_headers()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _serve_vault_list(self):
+        """GET /api/vault — list .md files in the knowledge vault."""
+        docs = list_vault()
+        body = json.dumps({"documents": docs}, default=str).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", len(body))
+        self._cors_headers()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _serve_vault_get(self, qs):
+        """GET /api/vault/get?path= — return raw markdown from vault."""
+        rel_path = qs.get("path", [None])[0]
+        if not rel_path:
+            self._json_error(HTTPStatus.BAD_REQUEST, "missing 'path' parameter")
+            return
+        content, abs_path, err = read_vault(rel_path)
+        if err:
+            self._json_error(HTTPStatus.BAD_REQUEST, err)
+            return
+        body = json.dumps({"path": rel_path, "abs_path": abs_path, "content": content}).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", len(body))

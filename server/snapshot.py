@@ -12,7 +12,7 @@ from server.sessions import build_unified_sessions, build_sessions_ledger
 from server.servers import build_servers
 from server.kanban import read_kanban_boards
 from server.cron_parser import build_crons
-from server.collectors import collect_gateway, collect_processes, collect_hermes_health, collect_sessions_ledger, collect_profiles, collect_sessions, collect_kanban, collect_prod_health, collect_dokku, collect_server_crons, collect_servers
+from server.collectors import collect_gateway, collect_processes, collect_hermes_health, collect_sessions_ledger, collect_profiles, collect_sessions, collect_kanban, collect_prod_health, collect_dokku, collect_server_crons, collect_servers, collect_openrouter_usage, collect_daily_costs
 from server.work_servers import collect_work_system_health, collect_work_docker, collect_work_nexus, collect_work_jenkins, collect_work_postgres
 
 
@@ -29,12 +29,15 @@ _CHANNEL_COLLECTORS = {
     "dokku":            collect_dokku,
     "server-crons":     collect_server_crons,
     "servers":          collect_servers,
+    "openrouter-usage": collect_openrouter_usage,
     # Work servers (Tier 3 — slow, cached)
     "work-system":      collect_work_system_health,
     "work-docker":      collect_work_docker,
     "work-nexus":       collect_work_nexus,
     "work-jenkins":     collect_work_jenkins,
     "work-postgres":    collect_work_postgres,
+    # Daily cost chart (sessions page)
+    "daily-costs":      collect_daily_costs,
 }
 
 

@@ -44,6 +44,7 @@ from server.kanban import _read_kanban_tasks, read_kanban_boards
 from server.sessions import (
     _count_sessions_in_db, _read_sessions_from_db,
     build_unified_sessions, build_sessions_ledger,
+    build_daily_costs,
 )
 from server.servers import (
     _ssh, _get_dokku_data, _get_server_crons,
@@ -64,6 +65,7 @@ from server.collectors import (
     collect_servers, collect_kanban,
     collect_prod_health, collect_dokku,
     collect_server_crons,
+    collect_openrouter_usage, collect_daily_costs,
 )
 from server.work_servers import (
     _run_ansible_script,

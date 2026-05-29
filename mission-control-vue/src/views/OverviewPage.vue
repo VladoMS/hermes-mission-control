@@ -15,6 +15,7 @@
       <div class="grid-left">
         <RadarCanvas />
         <ThroughputCard />
+        <OpenRouterCard />
         <VpsHealth />
       </div>
       <div class="grid-right">
@@ -63,6 +64,7 @@ import StatsStrip from '../components/StatsStrip.vue'
 import GlanceStrip from '../components/GlanceStrip.vue'
 import RadarCanvas from '../components/RadarCanvas.vue'
 import ThroughputCard from '../components/ThroughputCard.vue'
+import OpenRouterCard from '../components/OpenRouterCard.vue'
 import DirectiveCycler from '../components/DirectiveCycler.vue'
 import SystemStatus from '../components/SystemStatus.vue'
 import VpsHealth from '../components/VpsHealth.vue'

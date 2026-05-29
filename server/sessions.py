@@ -2,6 +2,7 @@
 
 import os
 import sqlite3
+import time
 from server.config import HERMES_HOME
 from server.readers import read_sqlite_ro, read_json
 # =============================================================================
@@ -91,6 +92,150 @@ def build_unified_sessions(profiles, errors_out):
     # Sort by started_at desc, limit to 50 for display
     all_sessions.sort(key=lambda s: s.get("started_at", 0) or 0, reverse=True)
     return all_sessions[:50], total_count
+
+
+def _read_daily_costs_from_db(path, errors_out):
+    """Read per-day cost from a single state.db (last 90 days, no limit)."""
+    try:
+        db = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        db.execute("PRAGMA query_only=1")
+        rows = db.execute(
+            "SELECT started_at, estimated_cost_usd "
+            "FROM sessions "
+            "WHERE started_at IS NOT NULL "
+            "ORDER BY started_at ASC"
+        ).fetchall()
+        db.close()
+        return rows
+    except Exception as e:
+        errors_out.append(f"state.db daily costs: {e}")
+        return []
+
+
+def build_daily_costs(profiles, errors_out, openrouter_usage=None):
+    """Build per-day cost breakdown from all state.dbs.
+
+    Queries ALL sessions with started_at + cost, groups by day,
+    sorts chronologically, and appends a linear-regression prediction.
+
+    If openrouter_usage is provided, today's cost is overridden with
+    the OpenRouter API's usage_daily_usd (the authoritative source).
+    This corrects for sessions where estimated_cost_usd is missing
+    due to model name formatting inconsistencies in state.db.
+
+    Returns a dict with 'days' (array of {date, cost, prediction}),
+    'daily_average' (float), 'today_so_far' (float), and
+    'openrouter_daily' (float or None).
+    """
+    from collections import defaultdict
+    daily = defaultdict(float)
+
+    def _process(path):
+        for started_at, cost in _read_daily_costs_from_db(path, errors_out):
+            if not started_at:
+                continue
+            # started_at may be Unix timestamp (int/float) or ISO string
+            try:
+                if isinstance(started_at, (int, float)):
+                    ts = float(started_at)
+                else:
+                    ts = float(started_at)
+            except (ValueError, TypeError):
+                continue
+            date_str = time.strftime("%Y-%m-%d", time.gmtime(ts))
+            daily[date_str] += float(cost or 0)
+
+    # Root state.db
+    root_path = os.path.join(HERMES_HOME, "state.db")
+    if os.path.exists(root_path):
+        _process(root_path)
+
+    # Per-profile state.dbs
+    for profile in (profiles or []):
+        name = profile.get("name", "")
+        if name == "default":
+            continue
+        state_path = os.path.join(HERMES_HOME, "profiles", name, "state.db")
+        if os.path.exists(state_path):
+            _process(state_path)
+
+    if not daily:
+        return {"days": [], "daily_average": 0.0, "today_so_far": 0.0, "openrouter_daily": None}
+
+    # Sort by date
+    sorted_dates = sorted(daily.keys())
+    days = [{"date": d, "cost": round(daily[d], 6), "prediction": None} for d in sorted_dates]
+
+    # Compute daily average (exclude today — partial day)
+    today_str = time.strftime("%Y-%m-%d", time.gmtime())
+    past_days = [d for d in sorted_dates if d != today_str]
+    past_costs = [daily[d] for d in past_days]
+    daily_average = sum(past_costs) / len(past_costs) if past_costs else 0.0
+
+    # ── OpenRouter cross-reference ──
+    # Override today's cost with the authoritative OpenRouter API value.
+    # state.db estimated_cost_usd is unreliable: some sessions have model
+    # names without provider prefix, causing cost estimation to return $0.
+    or_daily = None
+    if openrouter_usage and isinstance(openrouter_usage, dict):
+        or_daily = openrouter_usage.get("usage_daily_usd")
+        if or_daily and isinstance(or_daily, (int, float)) and or_daily > 0:
+            # Replace today's entry in the days array
+            for d in days:
+                if d["date"] == today_str:
+                    d["cost"] = round(float(or_daily), 6)
+                    break
+            else:
+                # No today entry exists yet — add one
+                days.append({
+                    "date": today_str,
+                    "cost": round(float(or_daily), 6),
+                    "prediction": None,
+                })
+
+    # Linear regression on last 14 days for prediction
+    prediction_days = []
+    if len(past_days) >= 3:
+        N = min(14, len(past_days))
+        recent = past_days[-N:]
+        xs = list(range(N))
+        ys = [daily[d] for d in recent]
+
+        n = len(xs)
+        sum_x = sum(xs)
+        sum_y = sum(ys)
+        sum_xy = sum(x * y for x, y in zip(xs, ys))
+        sum_xx = sum(x * x for x in xs)
+        denom = n * sum_xx - sum_x * sum_x
+        if denom != 0:
+            slope = (n * sum_xy - sum_x * sum_y) / denom
+            intercept = (sum_y - slope * sum_x) / n
+            # Predict next 3 days starting AFTER the last actual day
+            last_actual = sorted_dates[-1]
+            for i in range(1, 4):
+                pred_val = max(0.0, intercept + slope * (N + i - 1))
+                pred_date = _add_days(last_actual, i)
+                prediction_days.append({
+                    "date": pred_date,
+                    "cost": 0.0,
+                    "prediction": round(pred_val, 6),
+                })
+
+    today_cost = or_daily if or_daily else daily.get(today_str, 0.0)
+    return {
+        "days": days + prediction_days,
+        "daily_average": round(daily_average, 6),
+        "today_so_far": round(today_cost, 6),
+        "openrouter_daily": round(or_daily, 6) if or_daily else None,
+        "monthly_projection": round(today_cost * 30, 6),
+    }
+
+
+def _add_days(date_str, n):
+    """Add n days to a YYYY-MM-DD date string."""
+    from datetime import datetime, timedelta
+    dt = datetime.strptime(date_str, "%Y-%m-%d")
+    return (dt + timedelta(days=n)).strftime("%Y-%m-%d")
 
 
 def build_sessions_ledger(all_sessions, total_session_count=None):

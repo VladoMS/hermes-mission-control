@@ -15,6 +15,9 @@ export const useSessionsStore = defineStore('sessions', () => {
   /** Token/cost ledger aggregate */
   const ledger = computed(() => snap.data?.sessions_ledger || {})
 
+  /** Daily cost breakdown with predictions */
+  const dailyCosts = computed(() => snap.data?.daily_costs || { days: [], daily_average: 0.0, today_so_far: 0.0 })
+
   // ── Filters ────────────────────────────────────────────
 
   const filterProfile = ref('all')
@@ -102,6 +105,7 @@ export const useSessionsStore = defineStore('sessions', () => {
   return {
     sessions,
     ledger,
+    dailyCosts,
     filteredSessions,
     filterProfile,
     filterModel,

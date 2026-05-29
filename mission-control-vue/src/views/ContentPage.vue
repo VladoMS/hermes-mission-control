@@ -3,7 +3,7 @@
     <div class="section-head">
       <div class="title-block">
         <div class="eyebrow">CONTENT</div>
-        <div class="display medium">{{ docCount }} DOCUMENTS</div>
+        <div class="display medium">{{ docCount }} AGENT · {{ vaultCount }} VAULT</div>
       </div>
     </div>
 
@@ -22,6 +22,7 @@ import ContentPreview from '../components/ContentPreview.vue'
 
 const contentStore = useContentStore()
 const docCount = computed(() => contentStore.documentCount)
+const vaultCount = computed(() => contentStore.vaultCount)
 </script>
 
 <style scoped>

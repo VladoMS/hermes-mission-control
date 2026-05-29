@@ -1,8 +1,9 @@
 <template>
   <div class="content-sidebar panel">
-    <div class="eyebrow">DOCUMENTS</div>
-    <div v-if="contentStore.isLoading" class="sb-loading">Loading...</div>
-    <div v-else-if="agentList.length === 0" class="sb-empty">No documents</div>
+    <!-- Agent Documents -->
+    <div class="eyebrow">AGENT DOCUMENTS</div>
+    <div v-if="contentStore.isLoading && agentList.length === 0" class="sb-loading">Loading...</div>
+    <div v-else-if="agentList.length === 0" class="sb-empty">No agent documents</div>
     <div v-for="agent in agentList" :key="agent" class="sb-group">
       <div class="sb-agent" @click="toggleGroup(agent)">
         <span class="sb-arrow" :class="{ open: openGroups[agent] }">▶</span>
@@ -29,12 +30,35 @@
               v-for="doc in docsByAgentMonth[agent][ym]"
               :key="doc.rel_path"
               class="sb-doc"
-              :class="{ active: contentStore.selectedDoc?.rel_path === doc.rel_path }"
+              :class="{ active: contentStore.selectedDoc?.rel_path === doc.rel_path && contentStore.selectedDoc?.source !== 'vault' }"
               @click="contentStore.selectDocument(doc)"
             >
               {{ doc.title || doc.filename }}
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Knowledge Vault -->
+    <div class="eyebrow sb-section-divider">KNOWLEDGE VAULT</div>
+    <div v-if="vaultSections.length === 0" class="sb-empty">No vault documents</div>
+    <div v-for="section in vaultSections" :key="'vault-' + section" class="sb-group">
+      <div class="sb-agent" @click="toggleGroup('vault-' + section)">
+        <span class="sb-arrow" :class="{ open: openGroups['vault-' + section] }">▶</span>
+        <span class="sb-agent-dot" style="background: #1ec8ff"></span>
+        <span class="sb-agent-name">{{ section }}</span>
+        <span class="sb-count">{{ (vaultBySection[section] || []).length }}</span>
+      </div>
+      <div v-if="openGroups['vault-' + section]" class="sb-docs vault-docs">
+        <div
+          v-for="doc in vaultBySection[section]"
+          :key="'v-' + doc.rel_path"
+          class="sb-doc"
+          :class="{ active: contentStore.selectedDoc?.rel_path === doc.rel_path && contentStore.selectedDoc?.source === 'vault' }"
+          @click="contentStore.selectVaultDocument(doc)"
+        >
+          {{ doc.title || doc.filename }}
         </div>
       </div>
     </div>
@@ -78,8 +102,13 @@ function sortedMonths(agent) {
 const agentList = computed(() => contentStore.agentList)
 const docsByAgent = computed(() => contentStore.documentsByAgent)
 const docsByAgentMonth = computed(() => contentStore.documentsByAgentAndMonth)
+const vaultBySection = computed(() => contentStore.vaultBySection)
+const vaultSections = computed(() => contentStore.vaultSections)
 
-onMounted(() => { contentStore.fetchDocuments() })
+onMounted(() => {
+  contentStore.fetchDocuments()
+  contentStore.fetchVaultDocuments()
+})
 </script>
 
 <style scoped>
@@ -152,4 +181,10 @@ onMounted(() => { contentStore.fetchDocuments() })
   border-left-color: var(--red);
   background: var(--red-bg);
 }
+.sb-section-divider {
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-dim);
+}
+.vault-docs { padding-left: 0; }
 </style>

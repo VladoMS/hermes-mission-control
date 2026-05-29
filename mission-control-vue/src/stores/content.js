@@ -2,27 +2,22 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 /**
- * Content store — document list, selection, and edit mode.
- * Data is fetched from /api/content endpoints (not in SSE snapshot).
+ * Content store — agent documents + knowledge vault.
+ * Agent docs fetched from /api/content, vault from /api/vault.
  */
 export const useContentStore = defineStore('content', () => {
-  /** All discovered markdown documents */
+  // ── Agent documents ────────────────────────────────────
   const documents = ref([])
-
-  /** Currently selected document metadata */
   const selectedDoc = ref(null)
-
-  /** Raw markdown content of the selected document */
   const docContent = ref('')
-
-  /** Absolute filesystem path of the selected document */
   const absPath = ref('')
-
-  /** Whether the editor is active */
   const isEditing = ref(false)
-
-  /** Loading state for API calls */
   const isLoading = ref(false)
+
+  // ── Vault documents ────────────────────────────────────
+  const vaultDocuments = ref([])
+  const vaultContent = ref('')
+  const vaultAbsPath = ref('')
 
   // ── API ────────────────────────────────────────────────
 
@@ -96,6 +91,62 @@ export const useContentStore = defineStore('content', () => {
     }
   }
 
+  // ── Vault API ──────────────────────────────────────────
+
+  /** Fetch vault document list from server. */
+  async function fetchVaultDocuments() {
+    isLoading.value = true
+    try {
+      const res = await fetch('/api/vault')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      vaultDocuments.value = Array.isArray(data.documents) ? data.documents : []
+    } catch (e) {
+      console.warn('Vault: fetchVaultDocuments failed:', e.message)
+      vaultDocuments.value = []
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /** Fetch raw content of a vault document. */
+  async function fetchVaultDocContent(relPath) {
+    isLoading.value = true
+    try {
+      const url = `/api/vault/get?path=${encodeURIComponent(relPath)}`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      if (data.error) {
+        console.warn('Vault: fetchVaultDocContent error:', data.error)
+        return null
+      }
+      vaultContent.value = data.content || ''
+      vaultAbsPath.value = data.abs_path || ''
+      return data.content
+    } catch (e) {
+      console.warn('Vault: fetchVaultDocContent failed:', e.message)
+      return null
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  // ── Vault selection ───────────────────────────────────
+
+  /** Select a vault document and load its content. */
+  function selectVaultDocument(doc) {
+    selectedDoc.value = doc   // re-use selectedDoc for preview component
+    docContent.value = ''
+    absPath.value = ''
+    vaultContent.value = ''
+    vaultAbsPath.value = ''
+    isEditing.value = false
+    if (doc?.rel_path) {
+      fetchVaultDocContent(doc.rel_path)
+    }
+  }
+
   // ── Selection ──────────────────────────────────────────
 
   /** Select a document and load its content */
@@ -162,7 +213,29 @@ export const useContentStore = defineStore('content', () => {
   /** Total document count */
   const documentCount = computed(() => documents.value.length)
 
+  // ── Vault derived ──────────────────────────────────────
+
+  /** Vault docs grouped by section (top-level directory). */
+  const vaultBySection = computed(() => {
+    const groups = {}
+    for (const doc of vaultDocuments.value) {
+      const sec = doc.section || 'other'
+      if (!groups[sec]) groups[sec] = []
+      groups[sec].push(doc)
+    }
+    return groups
+  })
+
+  /** Sorted vault section names. */
+  const vaultSections = computed(() =>
+    Object.keys(vaultBySection.value).sort()
+  )
+
+  /** Total vault document count. */
+  const vaultCount = computed(() => vaultDocuments.value.length)
+
   return {
+    // Agent docs
     documents,
     selectedDoc,
     docContent,
@@ -179,5 +252,15 @@ export const useContentStore = defineStore('content', () => {
     selectDocument,
     clearSelection,
     toggleEdit,
+    // Vault
+    vaultDocuments,
+    vaultContent,
+    vaultAbsPath,
+    vaultBySection,
+    vaultSections,
+    vaultCount,
+    fetchVaultDocuments,
+    fetchVaultDocContent,
+    selectVaultDocument,
   }
 })

@@ -70,10 +70,13 @@ _CHANNEL_REGISTRY = [
     ("profiles",        60,   2),
     ("sessions",        30,   2),
     ("kanban",          30,   2),
+    ("daily-costs",    120,   2),
     # Tier 3 — Slow, cached
     ("prod-health",     30,   3),
     ("dokku",           60,   3),
     ("server-crons",   300,   3),
+    # OpenRouter usage — live credit/cost data from OpenRouter API
+    ("openrouter-usage", 60,   2),
     ("servers",         60,   3),
     # Work servers — conservative intervals to avoid strain
     ("work-system",    900,   3),   # 15 min — CPU/MEM/DISK

@@ -8,6 +8,7 @@
     </div>
 
     <TokenLedger />
+    <DailyCostChart />
     <PieChart />
     <SessionsTable />
   </div>
@@ -17,6 +18,7 @@
 import { computed } from 'vue'
 import { useSessionsStore } from '../stores/sessions.js'
 import TokenLedger from '../components/TokenLedger.vue'
+import DailyCostChart from '../components/DailyCostChart.vue'
 import PieChart from '../components/PieChart.vue'
 import SessionsTable from '../components/SessionsTable.vue'
 

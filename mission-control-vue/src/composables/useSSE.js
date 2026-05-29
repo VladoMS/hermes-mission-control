@@ -17,6 +17,8 @@ const CHANNELS = {
   'dokku':            { key: 'dokku',            interval: 60000 },
   'server-crons':     { key: 'server_crons',     interval: 300000 },
   'servers':          { key: 'servers',          interval: 60000 },
+  'openrouter-usage': { key: 'openrouter_usage', interval: 60000 },
+  'daily-costs':       { key: 'daily_costs',      interval: 120000 },
   // Work servers
   'work-system':      { key: 'work-system',      interval: 900000 },
   'work-docker':      { key: 'work-docker',      interval: 1800000 },
