@@ -20,7 +20,7 @@ from server.readers import (
     _prod_lock, _prod_cache, _prod_errors_cache,
     read_sqlite_ro, read_json, read_profile_yaml,
     read_config_yaml, get_state_db_stats,
-    _read_servers_config, _read_work_servers_config,
+    _read_servers_config,
 )
 from server.cron_parser import (
     _pad_time, _parse_cron_field,

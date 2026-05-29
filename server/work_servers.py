@@ -6,7 +6,7 @@ import subprocess
 import time
 import threading
 from server.config import HERMES_HOME
-from server.readers import read_json, _read_work_servers_config
+from server.readers import read_json
 # =============================================================================
 # Work Servers — data collection from work-laptop over Tailscale
 # =============================================================================
@@ -26,7 +26,7 @@ def _read_work_servers_config():
     with _work_servers_lock:
         if _work_servers_config is not None:
             return _work_servers_config
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "work-servers.json")
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "work-servers.json")
         cfg = read_json(path)
         _work_servers_config = cfg if cfg else {"servers": []}
         return _work_servers_config

@@ -223,16 +223,3 @@ def _read_servers_config():
     except Exception:
         return []
 
-def _read_work_servers_config():
-    """Read work-servers.json, cached in memory."""
-    global _work_servers_config
-    if _work_servers_config is not None:
-        return _work_servers_config
-    with _work_servers_lock:
-        if _work_servers_config is not None:
-            return _work_servers_config
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "work-servers.json")
-        cfg = read_json(path)
-        _work_servers_config = cfg if cfg else {"servers": []}
-        return _work_servers_config
-
