@@ -38,8 +38,12 @@
         <div class="role-header">◆ DOCKER</div>
         <div class="role-grid">
           <div class="role-stat">
-            <span class="role-label mono">Containers</span>
-            <span class="role-val">{{ srv.docker.container_count || 0 }} / {{ srv.docker.total_containers || 0 }}</span>
+            <span class="role-label mono">Running</span>
+            <span class="role-val">{{ srv.docker.running_count || 0 }} / {{ srv.docker.total_containers || 0 }}</span>
+          </div>
+          <div class="role-stat">
+            <span class="role-label mono">Stopped</span>
+            <span class="role-val dim">{{ srv.docker.stopped_count || 0 }}</span>
           </div>
           <div class="role-stat">
             <span class="role-label mono">Images</span>
@@ -48,6 +52,14 @@
           <div class="role-stat">
             <span class="role-label mono">Swarm</span>
             <span class="role-val" :class="srv.docker.swarm_state === 'active' ? 'green' : ''">{{ srv.docker.swarm_state || '--' }}</span>
+          </div>
+        </div>
+        <!-- Stopped containers -->
+        <div v-if="srv.docker.stopped?.length" class="role-subpanel">
+          <div class="role-subheader mono">RECENTLY STOPPED</div>
+          <div v-for="c in srv.docker.stopped.slice(0, 8)" :key="c.name" class="swarm-svc-row">
+            <span class="svc-name mono">{{ c.name }}</span>
+            <span class="mono dim" style="font-size:9px">{{ c.status }}</span>
           </div>
         </div>
         <!-- Swarm services -->
@@ -73,11 +85,20 @@
             <span class="role-val">{{ srv.nexus.blobstores?.length || 0 }}</span>
           </div>
         </div>
-        <div v-if="srv.nexus.blobstores?.length" class="blob-list">
+        <!-- Format breakdown -->
+        <div v-if="srv.nexus.formats" class="role-subpanel">
+          <div class="role-subheader mono">FORMATS</div>
+          <div class="format-chips">
+            <span v-for="(count, fmt) in srv.nexus.formats" :key="fmt" class="chip">{{ fmt }}: {{ count }}</span>
+          </div>
+        </div>
+        <!-- Blob stores with sizes -->
+        <div v-if="srv.nexus.blobstores?.length" class="role-subpanel">
+          <div class="role-subheader mono">BLOB STORES</div>
           <div v-for="blob in srv.nexus.blobstores" :key="blob.name" class="blob-row">
             <span class="mono">{{ blob.name }}</span>
             <span class="mono dim">{{ blob.blobCount || 0 }} blobs</span>
-            <span class="mono dim">{{ fmtBytes(blob.totalSizeInBytes) }}</span>
+            <span class="mono dim">{{ blob.size_gb ? blob.size_gb + ' GB' : blob.disk_usage || '--' }}</span>
           </div>
         </div>
       </div>
@@ -107,48 +128,95 @@
 
       <!-- Postgres panel -->
       <div v-if="srv.postgres" class="role-panel">
-        <div class="role-header">◆ POSTGRES</div>
-        <div class="role-grid">
-          <div class="role-stat">
-            <span class="role-label mono">PG Running</span>
-            <span class="role-val" :class="srv.postgres.running ? 'green' : 'dim'">{{ srv.postgres.running ? 'YES' : 'NO' }}</span>
-          </div>
-          <div class="role-stat">
-            <span class="role-label mono">Databases</span>
-            <span class="role-val">{{ srv.postgres.db_count || 0 }}</span>
-          </div>
-          <div class="role-stat">
-            <span class="role-label mono">Connections</span>
-            <span class="role-val">{{ srv.postgres.total_connections || 0 }}</span>
-          </div>
-          <div class="role-stat">
-            <span class="role-label mono">Cache Hit</span>
-            <span class="role-val">{{ srv.postgres.cache_hit_pct || 0 }}%</span>
-          </div>
+        <div class="role-header">
+          ◆ POSTGRES
+          <span v-if="srv.patroni?.state" class="patroni-chip" :class="srv.patroni.role">
+            {{ srv.patroni.role.toUpperCase() }}
+          </span>
+          <span v-if="srv.postgres.running" class="pg-running green">● LIVE</span>
         </div>
 
-        <!-- Patroni -->
-        <div v-if="srv.patroni && srv.patroni.state" class="role-subpanel">
-          <div class="role-subheader mono">PATRONI — {{ srv.patroni.role }} / {{ srv.patroni.state }}</div>
-          <div v-if="srv.patroni.members?.length" class="patroni-members">
+        <!-- Patroni is the source of truth for PG health -->
+        <div v-if="srv.patroni?.state" class="patroni-primary">
+          <div class="role-grid">
+            <div class="role-stat">
+              <span class="role-label mono">Cluster</span>
+              <span class="role-val green">{{ srv.patroni.state }}</span>
+            </div>
+            <div class="role-stat">
+              <span class="role-label mono">Timeline</span>
+              <span class="role-val">{{ srv.patroni.timeline }}</span>
+            </div>
+            <div class="role-stat">
+              <span class="role-label mono">PG Version</span>
+              <span class="role-val mono dim">{{ fmtVersion(srv.patroni.server_version) }}</span>
+            </div>
+            <div class="role-stat">
+              <span class="role-label mono">Restart Pending</span>
+              <span class="role-val" :class="srv.patroni.pending_restart ? 'amber' : ''">{{ srv.patroni.pending_restart ? 'YES' : 'no' }}</span>
+            </div>
+          </div>
+
+          <!-- Patroni members -->
+          <div v-if="srv.patroni.members?.length" class="role-subpanel">
+            <div class="role-subheader mono">CLUSTER MEMBERS</div>
             <div v-for="m in srv.patroni.members" :key="m.name" class="patroni-row">
-              <span class="mono" :class="m.role === 'leader' ? 'green' : ''">{{ m.name }}</span>
+              <span class="mono" :class="m.role === 'leader' || m.role === 'master' ? 'green' : ''">{{ m.name }}</span>
               <span class="mono dim">{{ m.role }}</span>
               <span class="mono dim">{{ m.state }}</span>
+              <span class="mono dim">{{ m.host }}</span>
               <span v-if="m.lag_mb" class="mono amber">{{ m.lag_mb }}MB lag</span>
             </div>
           </div>
         </div>
 
-        <!-- Etcd -->
-        <div v-if="srv.etcd && srv.etcd.endpoints?.length" class="role-subpanel">
-          <div class="role-subheader mono">ETCD</div>
-          <div v-for="ep in srv.etcd.endpoints" :key="ep.endpoint" class="etcd-row">
-            <span class="mono">{{ ep.endpoint }}</span>
-            <span class="mono dim">v{{ ep.version }}</span>
-            <span class="mono dim">{{ ep.db_size_mb }}MB</span>
-            <span class="mono dim">term {{ ep.raft_term }}</span>
+        <!-- Direct PG stats (only if accessible) -->
+        <div v-if="srv.postgres.running" class="role-subpanel">
+          <div class="role-subheader mono">DIRECT PG STATS</div>
+          <div class="role-grid">
+            <div class="role-stat">
+              <span class="role-label mono">Databases</span>
+              <span class="role-val">{{ srv.postgres.db_count || 0 }}</span>
+            </div>
+            <div class="role-stat">
+              <span class="role-label mono">Connections</span>
+              <span class="role-val">{{ srv.postgres.total_connections || 0 }}</span>
+            </div>
+            <div class="role-stat">
+              <span class="role-label mono">Cache Hit</span>
+              <span class="role-val">{{ srv.postgres.cache_hit_pct || 0 }}%</span>
+            </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Etcd panel -->
+      <div v-if="srv.etcd?.endpoints?.length" class="role-panel">
+        <div class="role-header">
+          ◆ ETCD
+          <span class="mono dim" style="font-size:9px">{{ srv.etcd.endpoints.length }} nodes</span>
+          <span v-if="srv.etcd.healthy" class="green" style="font-size:9px">● HEALTHY</span>
+          <span v-else class="red" style="font-size:9px">● UNHEALTHY</span>
+        </div>
+        <div class="role-grid">
+          <div class="role-stat">
+            <span class="role-label mono">DB Size</span>
+            <span class="role-val">{{ srv.etcd.total_db_mb }} MB</span>
+          </div>
+          <div class="role-stat">
+            <span class="role-label mono">Raft Term</span>
+            <span class="role-val">{{ srv.etcd.endpoints[0]?.raft_term }}</span>
+          </div>
+          <div class="role-stat">
+            <span class="role-label mono">Leader</span>
+            <span class="role-val">{{ srv.etcd.leader_count }} / {{ srv.etcd.endpoints.length }}</span>
+          </div>
+        </div>
+        <div v-for="ep in srv.etcd.endpoints" :key="ep.endpoint" class="etcd-row">
+          <span class="mono dim">{{ ep.endpoint }}</span>
+          <span class="mono dim" :class="ep.is_leader ? 'green' : ''">{{ ep.is_leader ? 'LEADER' : 'follower' }}</span>
+          <span class="mono dim">v{{ ep.version }}</span>
+          <span class="mono dim">{{ ep.db_size_mb }}MB</span>
         </div>
       </div>
     </div>
@@ -156,7 +224,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useWorkServersStore } from '../stores/workServers.js'
 import { useSSE } from '../composables/useSSE.js'
 import HealthBar from '../components/HealthBar.vue'
@@ -165,13 +233,27 @@ const ws = useWorkServersStore()
 const { connect } = useSSE()
 const servers = computed(() => ws.servers)
 
+// Reactive "time ago" that ticks every 30s
+const now = ref(Date.now())
+let tickTimer = null
+
 onMounted(() => {
   connect(['work-system', 'work-docker', 'work-nexus', 'work-jenkins', 'work-postgres'])
+  tickTimer = setInterval(() => { now.value = Date.now() }, 30000)
+})
+
+onUnmounted(() => {
+  if (tickTimer) clearInterval(tickTimer)
 })
 
 const lastUpdate = computed(() => {
   const ts = ws.lastCollected.system
-  return ws.ago(ts)
+  if (!ts) return '--'
+  const diff = (now.value / 1000) - ts
+  if (diff < 60) return Math.floor(diff) + 's ago'
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago'
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago'
+  return Math.floor(diff / 86400) + 'd ago'
 })
 
 function healthClass(h) {
@@ -209,6 +291,13 @@ function fmtBytes(b) {
   if (b >= 1e9) return (b / 1e9).toFixed(1) + 'GB'
   if (b >= 1e6) return (b / 1e6).toFixed(1) + 'MB'
   return (b / 1e3).toFixed(0) + 'KB'
+}
+
+function fmtVersion(v) {
+  if (!v) return '--'
+  const s = String(v)
+  if (s.length >= 6) return s.slice(0,2) + '.' + s.slice(2,4) + '.' + s.slice(4)
+  return s
 }
 </script>
 
@@ -268,6 +357,17 @@ function fmtBytes(b) {
   display: flex; align-items: center; gap: 8px;
 }
 .jenkins-type { font-size: 9px; }
+.patroni-chip {
+  font-size: 9px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.patroni-chip.master, .patroni-chip.leader { color: var(--green); background: rgba(74,222,128,0.12); }
+.patroni-chip.replica, .patroni-chip.standby { color: var(--cyan); background: rgba(30,200,255,0.12); }
+.pg-running { font-size: 9px; font-family: var(--font-mono); }
 .role-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -310,6 +410,18 @@ function fmtBytes(b) {
 .green { color: var(--green); }
 .amber { color: var(--amber); }
 .red { color: var(--red); }
+
+/* Format chips */
+.format-chips {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+.format-chips .chip {
+  font-family: var(--font-mono); font-size: 9px;
+  padding: 2px 6px;
+  background: var(--bg-elevated);
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
 
 @media (max-width: 720px) {
   .health-grid { grid-template-columns: repeat(2, 1fr); }
