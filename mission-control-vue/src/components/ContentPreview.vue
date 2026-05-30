@@ -57,7 +57,7 @@
       </div>
 
       <!-- Render mode (default) -->
-      <div v-if="!contentStore.isEditing" class="preview-content" v-html="renderedHtml"></div>
+      <div v-if="!contentStore.isEditing" class="preview-content" v-html="renderedHtml" @click="handleVaultLinkClick"></div>
 
       <!-- Edit mode -->
       <div v-if="contentStore.isEditing" class="preview-edit">
@@ -115,17 +115,25 @@ const renderedHtml = computed(() => {
   // Strip YAML frontmatter (--- at start of file)
   text = text.replace(/^---[\s\S]*?---\n*/, '')
 
+  // ── Obsidian callouts ──
+  // Convert > [!TYPE] Title\n> Content into styled divs
+  // Must run BEFORE marked.parse so blockquotes don't double-process
+  text = renderCallouts(text)
+
   // Convert wikilinks with alias: [[path|Alias]] → [Alias](vault://path)
-  text = text.replace(/\[\[([^\]|#]+)\|([^\]]+)\]\]/g, (_m, path, alias) => {
+  // Preserve heading anchors: [[path#heading|Alias]] → [Alias](vault://path#heading)
+  text = text.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, (_m, path, alias) => {
     return `[${alias.trim()}](vault://${path.trim()})`
   })
 
-  // Convert bare wikilinks: [[path]] → [path](vault://path)
+  // Convert bare wikilinks: [[path#heading]] → [path](vault://path#heading)
   // (after aliased ones so we don't double-match)
   text = text.replace(/\[\[([^\]]+)\]\]/g, (_m, path) => {
     // Strip block references: note^block → note
-    const clean = path.replace(/\^[a-zA-Z0-9-]+$/, '').trim()
-    return `[${clean}](vault://${clean})`
+    let clean = path.replace(/\^[a-zA-Z0-9-]+$/, '').trim()
+    // Display text: strip heading anchor for cleaner link text
+    const display = clean.replace(/#.+$/, '')
+    return `[${display}](vault://${clean})`
   })
 
   // Convert inline #tags to styled spans (skip headings # like # H1)
@@ -185,6 +193,123 @@ async function handleSave() {
 function cancelEdit() {
   editText.value = contentStore.docContent
   contentStore.toggleEdit()
+}
+
+// ── Vault wikilink navigation ──
+
+/**
+ * Intercept clicks on vault:// links and navigate within the Content browser.
+ * Prevents the "scheme does not have a registered handler" browser error.
+ */
+function handleVaultLinkClick(event) {
+  // Find the vault:// link element (could be the link itself or a child)
+  let target = event.target
+  while (target && target !== event.currentTarget) {
+    if (target.tagName === 'A' && target.href && target.href.startsWith('vault://')) {
+      event.preventDefault()
+      navigateToVaultDoc(target.href)
+      return
+    }
+    target = target.parentElement
+  }
+}
+
+/**
+ * Resolve a vault://path to an actual vault document and select it.
+ * Supports heading anchors: vault://path#heading
+ */
+function navigateToVaultDoc(vaultUrl) {
+  const rawPath = vaultUrl.replace('vault://', '')
+  const [linkPath, headingAnchor] = rawPath.split('#')
+
+  if (!linkPath) return
+
+  // Search vault documents for a filename match
+  // Fuzzy: [[azahar-room-server]] should match .../azahar-room-server.md
+  const searchName = linkPath.toLowerCase().replace(/\.md$/, '')
+  const docs = contentStore.vaultDocuments
+
+  // Try exact rel_path match first, then filename match, then partial match
+  let match = docs.find(d => d.rel_path === linkPath)
+    || docs.find(d => d.rel_path === linkPath + '.md')
+    || docs.find(d => d.filename.toLowerCase() === searchName + '.md')
+    || docs.find(d => d.filename.toLowerCase().includes(searchName))
+    || docs.find(d => d.rel_path.toLowerCase().includes(searchName))
+
+  if (match) {
+    contentStore.selectVaultDocument(match)
+    // After content loads, scroll to the heading anchor if present
+    if (headingAnchor) {
+      // Wait for content to render, then scroll
+      setTimeout(() => {
+        const el = document.getElementById(headingAnchor)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 300)
+    }
+  }
+}
+
+// ── Obsidian Callout Rendering ──
+
+// Obsidian callout type → CSS class mapping
+const CALLOUT_MAP = {
+  'note': 'callout-note',
+  'abstract': 'callout-abstract', 'summary': 'callout-abstract', 'tldr': 'callout-abstract',
+  'info': 'callout-info',
+  'tip': 'callout-tip', 'hint': 'callout-tip', 'important': 'callout-tip',
+  'success': 'callout-success', 'check': 'callout-success', 'done': 'callout-success',
+  'question': 'callout-question', 'help': 'callout-question', 'faq': 'callout-question',
+  'warning': 'callout-warning', 'caution': 'callout-warning', 'attention': 'callout-warning',
+  'failure': 'callout-failure', 'fail': 'callout-failure', 'missing': 'callout-failure',
+  'danger': 'callout-danger', 'error': 'callout-danger',
+  'bug': 'callout-bug',
+  'example': 'callout-example',
+  'quote': 'callout-quote', 'cite': 'callout-quote',
+}
+
+/**
+ * Convert Obsidian callout blocks ("> [!TYPE] Title\n> Content") into styled HTML divs.
+ * Handles multi-line callout bodies, nested content, and foldable callouts ([!TYPE]+ / [!TYPE]-).
+ * Runs before marked.parse to prevent double blockquote rendering.
+ */
+function renderCallouts(text) {
+  // Match callout blocks: lines starting with "> [!TYPE]" optionally followed by +/-
+  // Body lines start with ">" and optional space
+  const calloutRegex = /^(> \[!(\w+)\](\+|-)?\s*(.*)\n)((?:>.*\n?)*)/gm
+
+  return text.replace(calloutRegex, (match, header, type, foldable, title, body) => {
+    const cssClass = CALLOUT_MAP[type.toLowerCase()] || 'callout-note'
+    const displayTitle = title.trim() || type.charAt(0).toUpperCase() + type.slice(1)
+    const isFoldable = foldable === '+' || foldable === '-'
+    const isOpen = foldable !== '-' // [+] means open, [-] means closed, no foldable = always open
+
+    // Strip "> " prefix from body lines, preserve content after
+    const bodyLines = body
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => line.replace(/^>\s?/, ''))
+      .join('\n')
+
+    // Build the HTML
+    const foldClass = isFoldable ? ' callout-foldable' : ''
+    const stateClass = isFoldable && !isOpen ? ' callout-collapsed' : ''
+
+    let html = `<div class="obsidian-callout ${cssClass}${foldClass}${stateClass}">`
+    html += `<div class="callout-title">`
+    if (isFoldable) {
+      html += `<span class="callout-fold-icon">${isOpen ? '▼' : '▶'}</span> `
+    }
+    html += `${displayTitle}</div>`
+    if (bodyLines) {
+      // Re-process body through marked for rich content (lists, code, etc.)
+      html += `<div class="callout-body">${marked.parse(bodyLines)}</div>`
+    }
+    html += `</div>`
+
+    return html
+  })
 }
 </script>
 
@@ -323,6 +448,75 @@ function cancelEdit() {
 .preview-content :deep(a:hover) {
   text-decoration: underline;
 }
+/* Obsidian callout styling */
+.preview-content :deep(.obsidian-callout) {
+  margin: 10px 0;
+  padding: 10px 14px;
+  border-left: 3px solid var(--text-faint);
+  background: var(--bg-deep);
+  border-radius: 0 4px 4px 0;
+}
+.preview-content :deep(.callout-title) {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.preview-content :deep(.callout-fold-icon) {
+  font-size: 10px;
+  margin-right: 2px;
+  cursor: default;
+}
+.preview-content :deep(.callout-body) {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.preview-content :deep(.callout-body p) { margin: 4px 0; }
+.preview-content :deep(.callout-body ul),
+.preview-content :deep(.callout-body ol) { padding-left: 16px; margin: 4px 0; }
+
+/* Callout type colors */
+.preview-content :deep(.callout-note) { border-left-color: var(--cyan); }
+.preview-content :deep(.callout-note .callout-title) { color: var(--cyan); }
+
+.preview-content :deep(.callout-abstract) { border-left-color: var(--cyan); background: rgba(30,200,255,0.04); }
+.preview-content :deep(.callout-abstract .callout-title) { color: var(--cyan); }
+
+.preview-content :deep(.callout-info) { border-left-color: var(--cyan); }
+.preview-content :deep(.callout-info .callout-title) { color: var(--cyan); }
+
+.preview-content :deep(.callout-tip) { border-left-color: var(--green); background: rgba(74,222,128,0.04); }
+.preview-content :deep(.callout-tip .callout-title) { color: var(--green); }
+
+.preview-content :deep(.callout-success) { border-left-color: var(--green); }
+.preview-content :deep(.callout-success .callout-title) { color: var(--green); }
+
+.preview-content :deep(.callout-question) { border-left-color: var(--magenta); background: rgba(217,70,239,0.04); }
+.preview-content :deep(.callout-question .callout-title) { color: var(--magenta); }
+
+.preview-content :deep(.callout-warning) { border-left-color: var(--amber); background: rgba(255,176,32,0.04); }
+.preview-content :deep(.callout-warning .callout-title) { color: var(--amber); }
+
+.preview-content :deep(.callout-failure) { border-left-color: var(--red); background: rgba(255,59,31,0.04); }
+.preview-content :deep(.callout-failure .callout-title) { color: var(--red); }
+
+.preview-content :deep(.callout-danger) { border-left-color: var(--red); border-left-width: 4px; }
+.preview-content :deep(.callout-danger .callout-title) { color: var(--red); }
+
+.preview-content :deep(.callout-bug) { border-left-color: var(--red); }
+.preview-content :deep(.callout-bug .callout-title) { color: var(--red); }
+
+.preview-content :deep(.callout-example) { border-left-color: var(--magenta); }
+.preview-content :deep(.callout-example .callout-title) { color: var(--magenta); }
+
+.preview-content :deep(.callout-quote) { border-left-color: var(--text-dim); background: rgba(182,192,203,0.04); }
+.preview-content :deep(.callout-quote .callout-title) { color: var(--text-dim); }
+
+/* Foldable states */
+.preview-content :deep(.callout-collapsed .callout-body) { display: none; }
+.preview-content :deep(.callout-foldable .callout-title) { cursor: pointer; user-select: none; }
 /* Obsidian tag styling */
 .preview-content :deep(.obsidian-tag) {
   color: var(--magenta);
@@ -337,6 +531,7 @@ function cancelEdit() {
   color: var(--green);
   text-decoration: none;
   border-bottom: 1px dashed var(--green);
+  cursor: pointer;
 }
 .preview-content :deep(a[href^="vault://"]:hover) {
   color: var(--green);
